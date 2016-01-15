@@ -7,7 +7,7 @@ import (
 	"net"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/docker/docker/pkg/raftkv"
+	"github.com/cpuguy83/drax"
 	"github.com/docker/docker/pkg/signal"
 )
 

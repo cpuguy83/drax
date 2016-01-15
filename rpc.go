@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/pkg/raftkv/api"
+	"github.com/cpuguy83/drax/api"
 )
 
 const (
