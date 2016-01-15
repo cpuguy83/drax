@@ -1,4 +1,4 @@
-# drax
+# Drax
 An embeddable distributed k/v store for Go
 
 Drax is a distributed k/v store based on raft (specifically https://github.com/hashicorp/raft)
