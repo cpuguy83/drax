@@ -1,6 +1,5 @@
 FROM golang:1.5
 RUN go get github.com/hashicorp/raft && \
-  go get github.com/hashicorp/serf && \
   go get github.com/sirupsen/logrus && \
   go get github.com/docker/docker/pkg/signal && \
   go get github.com/boltdb/bolt && \
