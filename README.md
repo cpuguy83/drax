@@ -40,6 +40,15 @@ You can join a cluster by specifying **any** active peer's address, it does not 
 ```
 
 Requests to the K/V store can be sent to any peer and it will be forwarded to the leader.
+This implements libkv's `Store` interface.
+
+You can also communicate with the k/v store directly from the cluster:
+
+```go
+  kvPair, err := cluster.KVStore().Get("/foo")
+```
+
+This also implements libkv's `Store` interface.
 
 ###TODO:
 - Add tests
