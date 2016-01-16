@@ -232,19 +232,7 @@ func (s *store) Close() {
 	return
 }
 
-func (s *store) forwardToLeader(ax *api.Request) error {
-	leader := s.r.Leader()
-	if leader == "" {
-		return raft.ErrNotLeader
-	}
-
-	return raft.ErrNotLeader
-}
-
 func (s *store) apply(ax *api.Request) error {
-	if !s.r.IsLeader() {
-		return s.forwardToLeader(ax)
-	}
 	buf := bytes.NewBuffer(nil)
 	if err := api.Encode(ax, buf); err != nil {
 		return err
