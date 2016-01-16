@@ -63,7 +63,6 @@ func (s *store) get(key string) (*libkvstore.KVPair, error) {
 	return kv, nil
 }
 
-// TODO: support TTL from libkvstore.WriteOptions
 func (s *store) Put(key string, value []byte, options *libkvstore.WriteOptions) error {
 	if !s.r.IsLeader() {
 		return s.newClient().Put(key, value, options)
