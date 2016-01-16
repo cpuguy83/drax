@@ -71,12 +71,15 @@ func (s *store) Put(key string, value []byte, options *libkvstore.WriteOptions) 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.apply(&api.Request{
+	req := &api.Request{
 		Action: api.Put,
 		Key:    key,
 		Value:  value,
-		TTL:    options.TTL,
-	})
+	}
+	if options != nil {
+		req.TTL = options.TTL
+	}
+	return s.apply(req)
 }
 
 func (s *store) Delete(key string) error {
@@ -178,12 +181,15 @@ func (s *store) AtomicPut(key string, value []byte, previous *libkvstore.KVPair,
 		return false, nil, libkvstore.ErrKeyModified
 	}
 
-	if err := s.apply(&api.Request{
+	req = &api.Request{
 		Action: api.Put,
 		Key:    key,
 		Value:  value,
-		TTL:    options.TTL,
-	}); err != nil {
+	}
+	if options != nil {
+		req.TTL = options.TTL
+	}
+	if err := s.apply(req); err != nil {
 		return false, nil, err
 	}
 

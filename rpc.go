@@ -160,6 +160,7 @@ func rpcProxyRequest(addr string, msg *rpcRequest, from io.ReadWriter, tlsConfig
 	if err != nil {
 		return err
 	}
+	defer conn.Close()
 	if err := api.Encode(msg, conn); err != nil {
 		return err
 	}

@@ -54,7 +54,9 @@ func (c *client) Put(key string, value []byte, options *store.WriteOptions) erro
 		Action: api.Put,
 		Key:    key,
 		Value:  value,
-		TTL:    options.TTL,
+	}
+	if options != nil {
+		req.TTL = options.TTL
 	}
 
 	_, err := c.do(req)
