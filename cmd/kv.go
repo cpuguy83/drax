@@ -7,13 +7,13 @@ import (
 	"net"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/docker/docker/pkg/raftkv"
+	"github.com/cpuguy83/drax"
 	"github.com/docker/docker/pkg/signal"
 )
 
 var (
-	flHome = flag.String("home", "/var/lib/raftkv", "path to db local copy")
-	flAddr = flag.String("addr", fmt.Sprintf("127.0.0.1:%s", raftkv.DefaultRaftPort), "address to bind")
+	flHome = flag.String("home", "/var/lib/drax", "path to db local copy")
+	flAddr = flag.String("addr", fmt.Sprintf("127.0.0.1:%s", drax.DefaultRaftPort), "address to bind")
 	flPeer = flag.String("peer", "", "address of peer")
 )
 
@@ -36,7 +36,7 @@ func main() {
 		logrus.Fatalf("error setting up listener: %v", err)
 	}
 
-	cluster, err := raftkv.New(l, *flHome, l.Addr().String(), *flPeer, tlsConfig)
+	cluster, err := drax.New(l, *flHome, l.Addr().String(), *flPeer, tlsConfig)
 	if err != nil {
 		logrus.Fatalf("Error setting up cluster: %v", err)
 	}

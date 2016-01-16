@@ -1,4 +1,4 @@
-package raftkv
+package drax
 
 import (
 	"bytes"
@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/docker/docker/pkg/raftkv/api"
-	"github.com/docker/docker/pkg/raftkv/api/client"
+	"github.com/cpuguy83/drax/api"
+	"github.com/cpuguy83/drax/api/client"
 	libkvstore "github.com/docker/libkv/store"
 	"github.com/hashicorp/raft"
 )

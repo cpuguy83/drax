@@ -1,10 +1,10 @@
-package raftkv
+package drax
 
 import (
 	"net"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/docker/docker/pkg/raftkv/api"
+	"github.com/cpuguy83/drax/api"
 	libkvstore "github.com/docker/libkv/store"
 )
 

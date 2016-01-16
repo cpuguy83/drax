@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/docker/docker/pkg/raftkv/api"
+	"github.com/cpuguy83/drax/api"
 	"github.com/docker/libkv/store"
 )
 
