@@ -180,7 +180,7 @@ func (s *store) AtomicPut(key string, value []byte, previous *libkvstore.KVPair,
 		return false, nil, libkvstore.ErrKeyModified
 	}
 
-	req = &api.Request{
+	req := &api.Request{
 		Action: api.Put,
 		Key:    key,
 		Value:  value,
