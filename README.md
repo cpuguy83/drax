@@ -44,7 +44,7 @@ Requests to the K/V store can be sent to any peer and it will be forwarded to th
 ###TODO:
 - Add tests
 - Add support for (libkv) watches
-- Imrpove RPC semantics
+- Improve RPC semantics
 - Look at using something other than JSON for encoding/decoding K/V messages, and RPC messages
 - Add more documentation (both in code and examples)
 - Implement cluster management, adding/removing nodes to the store cluster as needed
