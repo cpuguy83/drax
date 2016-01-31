@@ -32,7 +32,7 @@ var raftStateTopic = func(v interface{}) bool {
 }
 
 func newRaft(home, addr string, peerStore *peerStoreWrapper, fsm raft.FSM, trans *raft.NetworkTransport, cfg *raft.Config) (*Raft, error) {
-	if err := os.MkdirAll(home, 0600); err != nil {
+	if err := os.MkdirAll(home, 0700); err != nil {
 		return nil, err
 	}
 	db, err := raftboltdb.NewBoltStore(filepath.Join(home, "raft.db"))
