@@ -1,26 +1,26 @@
 package drax
 
 import (
-	"crypto/tls"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/cpuguy83/drax/rpc"
 	"github.com/docker/docker/pkg/pubsub"
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/raft-boltdb"
 )
 
 type Raft struct {
-	r     *raft.Raft
-	trans *raft.NetworkTransport
-	peers *peerStoreWrapper
-	db    interface {
+	r      *raft.Raft
+	trans  *raft.NetworkTransport
+	peers  *peerStoreWrapper
+	stream *rpc.StreamLayer
+	db     interface {
 		Close() error
 	}
 	shutdownCh chan struct{}
-	tlsConfig  *tls.Config
 	store      *store
 	pub        *pubsub.Publisher
 }
@@ -97,10 +97,10 @@ func (r *Raft) Apply(b []byte) error {
 		return r.r.Apply(b, defaultTimeout).Error()
 	}
 
-	res, err := rpc(leader, &rpcRequest{
+	res, err := r.stream.RPC(leader, &rpc.Request{
 		Method: raftApply,
 		Args:   []string{string(b)},
-	}, r.tlsConfig)
+	})
 	if err != nil {
 		return err
 	}

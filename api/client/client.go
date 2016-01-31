@@ -1,41 +1,28 @@
 package client
 
 import (
-	"crypto/tls"
 	"errors"
 	"time"
 
 	"github.com/cpuguy83/drax/api"
+	"github.com/cpuguy83/drax/rpc"
 	"github.com/docker/libkv/store"
 )
 
-type Client interface {
-	Get(key string) (*store.KVPair, error)
-	Put(key string, value []byte, options *store.WriteOptions) error
-	Delete(key string) error
-	Exists(key string) (bool, error)
-	List(prefix string) ([]*store.KVPair, error)
-	DeleteTree(dir string) error
-	Watch(key string, stopCh <-chan struct{}) (<-chan *store.KVPair, error)
-	WatchTree(dir string, stopCh <-chan struct{}) (<-chan []*store.KVPair, error)
-	NewLock(key string, options *store.LockOptions) (store.Locker, error)
-	AtomicPut(key string, value []byte, previous *store.KVPair, options *store.WriteOptions) (bool, *store.KVPair, error)
-	AtomicDelete(key string, previous *store.KVPair) (bool, error)
-}
-
 var errNotImplemented = errors.New("Call not implemented in current backend")
 
-type client struct {
+type Client struct {
 	addr        string
-	tlsConfig   *tls.Config
 	dialTimeout time.Duration
+	streamLayer *rpc.StreamLayer
 }
 
-func New(addr string, tlsConfig *tls.Config, dialTimeout time.Duration) Client {
-	return &client{addr, tlsConfig, dialTimeout}
+func New(addr string, dialTimeout time.Duration, dialer rpc.DialerFn) *Client {
+	sl := rpc.NewStreamLayer(nil, api.ClientMessage, dialer)
+	return &Client{addr, dialTimeout, sl}
 }
 
-func (c *client) Get(key string) (*store.KVPair, error) {
+func (c *Client) Get(key string) (*store.KVPair, error) {
 	req := &api.Request{
 		Action: api.Get,
 		Key:    key,
@@ -49,7 +36,7 @@ func (c *client) Get(key string) (*store.KVPair, error) {
 	return kvToLibKV(res.KV), nil
 }
 
-func (c *client) Put(key string, value []byte, options *store.WriteOptions) error {
+func (c *Client) Put(key string, value []byte, options *store.WriteOptions) error {
 	req := &api.Request{
 		Action: api.Put,
 		Key:    key,
@@ -63,7 +50,7 @@ func (c *client) Put(key string, value []byte, options *store.WriteOptions) erro
 	return err
 }
 
-func (c *client) Delete(key string) error {
+func (c *Client) Delete(key string) error {
 	req := &api.Request{
 		Action: api.Delete,
 		Key:    key,
@@ -73,7 +60,7 @@ func (c *client) Delete(key string) error {
 	return err
 }
 
-func (c *client) Exists(key string) (bool, error) {
+func (c *Client) Exists(key string) (bool, error) {
 	req := &api.Request{
 		Action: api.Exists,
 		Key:    key,
@@ -83,7 +70,7 @@ func (c *client) Exists(key string) (bool, error) {
 	return res.Exists, err
 }
 
-func (c *client) List(prefix string) ([]*store.KVPair, error) {
+func (c *Client) List(prefix string) ([]*store.KVPair, error) {
 	req := &api.Request{
 		Action: api.List,
 		Key:    prefix,
@@ -105,7 +92,7 @@ func (c *client) List(prefix string) ([]*store.KVPair, error) {
 	return ls, nil
 }
 
-func (c *client) DeleteTree(dir string) error {
+func (c *Client) DeleteTree(dir string) error {
 	req := &api.Request{
 		Action: api.DeleteTree,
 		Key:    dir,
@@ -115,19 +102,19 @@ func (c *client) DeleteTree(dir string) error {
 	return err
 }
 
-func (c *client) Watch(key string, stopCh <-chan struct{}) (<-chan *store.KVPair, error) {
+func (c *Client) Watch(key string, stopCh <-chan struct{}) (<-chan *store.KVPair, error) {
 	return nil, errNotImplemented
 }
 
-func (c *client) WatchTree(dir string, stopCh <-chan struct{}) (<-chan []*store.KVPair, error) {
+func (c *Client) WatchTree(dir string, stopCh <-chan struct{}) (<-chan []*store.KVPair, error) {
 	return nil, errNotImplemented
 }
 
-func (c *client) NewLock(key string, options *store.LockOptions) (store.Locker, error) {
+func (c *Client) NewLock(key string, options *store.LockOptions) (store.Locker, error) {
 	return nil, errNotImplemented
 }
 
-func (c *client) AtomicPut(key string, value []byte, previous *store.KVPair, options *store.WriteOptions) (bool, *store.KVPair, error) {
+func (c *Client) AtomicPut(key string, value []byte, previous *store.KVPair, options *store.WriteOptions) (bool, *store.KVPair, error) {
 	req := api.Request{
 		Action:   api.AtomicPut,
 		Key:      key,
@@ -143,7 +130,7 @@ func (c *client) AtomicPut(key string, value []byte, previous *store.KVPair, opt
 	return res.Completed, kvToLibKV(res.KV), nil
 }
 
-func (c *client) AtomicDelete(key string, previous *store.KVPair) (bool, error) {
+func (c *Client) AtomicDelete(key string, previous *store.KVPair) (bool, error) {
 	req := api.Request{
 		Action:   api.AtomicDelete,
 		Key:      key,

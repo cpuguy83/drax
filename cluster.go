@@ -1,7 +1,6 @@
 package drax
 
 import (
-	"crypto/tls"
 	"fmt"
 	"net"
 	"os"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/cpuguy83/drax/api"
+	"github.com/cpuguy83/drax/rpc"
 	libkvstore "github.com/docker/libkv/store"
 	"github.com/hashicorp/raft"
 )
@@ -26,14 +26,14 @@ type Cluster struct {
 	store                *store
 	chShutdown           chan struct{}
 	chErrors             chan error
-	server               *RPCServer
-	tlsConfig            *tls.Config
+	server               *rpc.Server
 	l                    net.Listener
 	r                    *Raft
 	mu                   sync.Mutex
+	rpcDialer            rpc.DialerFn
 }
 
-func New(l net.Listener, home, addr, peer string, tlsConfig *tls.Config) (*Cluster, error) {
+func New(l net.Listener, rpcDialer rpc.DialerFn, home, addr, peer string) (*Cluster, error) {
 	if err := os.MkdirAll(home, 0600); err != nil {
 		return nil, fmt.Errorf("error creating home dir: %v", err)
 	}
@@ -45,6 +45,7 @@ func New(l net.Listener, home, addr, peer string, tlsConfig *tls.Config) (*Clust
 		chShutdown: make(chan struct{}),
 		chErrors:   make(chan error, 1),
 		l:          l,
+		rpcDialer:  rpcDialer,
 	}
 	return c, c.start()
 }
@@ -55,11 +56,7 @@ func (c *Cluster) start() error {
 	cfg := raft.DefaultConfig()
 	cfg.ShutdownOnRemove = false
 
-	// setup K/V store
-	raftStream, err := newStreamLayer(c.l.Addr(), c.tlsConfig, raftMessage)
-	if err != nil {
-		return err
-	}
+	raftStream := rpc.NewStreamLayer(c.l.Addr(), raftMessage, c.rpcDialer)
 	raftTransport := raft.NewNetworkTransport(raftStream, 3, defaultTimeout, os.Stdout)
 	peerStore := newPeerStore(c.home, raftTransport)
 
@@ -78,38 +75,33 @@ func (c *Cluster) start() error {
 	}
 	c.store.r = kvRaft
 	kvRaft.store = c.store
+	kvRaft.stream = raftStream
 
-	nodeRPCStream, err := newStreamLayer(c.l.Addr(), c.tlsConfig, api.RPCMessage)
-	if err != nil {
-		return err
-	}
+	nodeRPCStream := rpc.NewStreamLayer(c.l.Addr(), api.RPCMessage, c.rpcDialer)
 	nodeRPC := &nodeRPC{nodeRPCStream, kvRaft}
 	go nodeRPC.handleConns()
 
-	clientRPCStream, err := newStreamLayer(c.l.Addr(), c.tlsConfig, api.ClientMessage)
-	if err != nil {
-		return err
-	}
+	clientRPCStream := rpc.NewStreamLayer(c.l.Addr(), api.ClientMessage, c.rpcDialer)
 	clientRPC := &clientRPC{clientRPCStream, c.store}
 	go clientRPC.handleConns()
 
-	handlers := map[api.MessageType]rpcHandler{
+	handlers := map[api.MessageType]rpc.Handler{
 		raftMessage:       raftStream,
 		api.RPCMessage:    nodeRPCStream,
 		api.ClientMessage: clientRPCStream,
 	}
 
-	c.server = newRPCServer(c.l, handlers)
+	c.server = rpc.NewServer(c.l, handlers)
 	c.r = kvRaft
 
 	go c.store.waitLeader()
 	go c.waitLeader()
 
 	if c.peerAddr != "" && nPeers <= 1 {
-		res, err := rpc(c.peerAddr, &rpcRequest{
+		res, err := nodeRPCStream.RPC(c.peerAddr, &rpc.Request{
 			Method: addNode,
 			Args:   []string{c.addr},
-		}, c.tlsConfig)
+		})
 		if err != nil {
 			return err
 		}

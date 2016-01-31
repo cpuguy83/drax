@@ -8,11 +8,11 @@ import (
 	"github.com/docker/libkv/store"
 )
 
-func (c *client) dial() (net.Conn, error) {
-	return api.Dial(c.addr, api.ClientMessage, c.dialTimeout, c.tlsConfig, true)
+func (c *Client) dial() (net.Conn, error) {
+	return c.streamLayer.DialWithRetry(c.addr, c.dialTimeout, true)
 }
 
-func (c *client) do(req *api.Request) (*api.Response, error) {
+func (c *Client) do(req *api.Request) (*api.Response, error) {
 	conn, err := c.dial()
 	if err != nil {
 		return nil, err

@@ -5,9 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/cpuguy83/drax"
+	"github.com/cpuguy83/drax/rpc"
 	"github.com/docker/docker/pkg/signal"
 )
 
@@ -25,18 +27,28 @@ func main() {
 		tlsConfig *tls.Config
 		l         net.Listener
 		err       error
+		dialer    rpc.DialerFn
 	)
 
 	if tlsConfig == nil {
 		l, err = net.Listen("tcp", *flAddr)
+		dialer = func(addr string, timeout time.Duration) (net.Conn, error) {
+			return net.DialTimeout("tcp", addr, timeout)
+		}
 	} else {
 		l, err = tls.Listen("tcp", *flAddr, tlsConfig)
+		d := &net.Dialer{
+			Timeout: 30 * time.Second,
+		}
+		dialer = func(addr string, timeout time.Duration) (net.Conn, error) {
+			return tls.DialWithDialer(d, "tcp", *flAddr, tlsConfig)
+		}
 	}
 	if err != nil {
 		logrus.Fatalf("error setting up listener: %v", err)
 	}
 
-	cluster, err := drax.New(l, *flHome, l.Addr().String(), *flPeer, tlsConfig)
+	cluster, err := drax.New(l, dialer, *flHome, l.Addr().String(), *flPeer)
 	if err != nil {
 		logrus.Fatalf("Error setting up cluster: %v", err)
 	}

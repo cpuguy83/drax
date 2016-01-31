@@ -17,13 +17,19 @@ For running the server, see `cmd/kv.go` as an example to get going.
   // on node 1
   listener, _ := net.Listen("tcp", "10.0.0.1:2380")
   peerAddr := ""
-  cluster, _ := drax.New(listener, "/var/lib/drax", listener.Addr().String(), peerAddr, &tls.Config{})
+  dialerFn := func(addr string, timeout time.Duration) (net.Conn, error) {
+    return net.DialTimeout("tcp", addr, timeout)
+  }
+  cluster, _ := drax.New(listener, dialerFn, "/var/lib/drax", listener.Addr().String(), peerAddr)
 
 
   // on node 2
   listener, _ := net.Listen("tcp", "10.0.0.2:2380")
   peerAddr := "10.0.0.1:2380"
-  cluster, _ := drax.New(listener, "/var/lib/drax", listener.Addr().String(), peerAddr, &tls.Config{})
+  dialerFn := func(addr string, timeout time.Duration) (net.Conn, error) {
+    return net.DialTimeout("tcp", addr, timeout)
+  }
+  cluster, _ := drax.New(listener, dialerFn, "/var/lib/drax", listener.Addr().String(), peerAddr)
 ```
 
 A node that does not specify a peer, and that does not already contain a peer in it's peer store

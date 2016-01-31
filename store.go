@@ -37,9 +37,9 @@ func newDB() *db {
 	return &db{KV: make(map[string]*libkvstore.KVPair), TTLs: make(map[string]*ttl)}
 }
 
-func (s *store) newClient() client.Client {
+func (s *store) newClient() *client.Client {
 	leader := s.r.getLeader()
-	return client.New(leader, s.r.tlsConfig, defaultTimeout)
+	return client.New(leader, defaultTimeout, nil)
 }
 
 func newStore() *store {

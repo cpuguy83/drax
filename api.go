@@ -5,26 +5,27 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/cpuguy83/drax/api"
+	"github.com/cpuguy83/drax/rpc"
 	libkvstore "github.com/docker/libkv/store"
 )
 
 // nodeRPC handles communcations for node-level actions(e.g., addNode, removeNode)
 type nodeRPC struct {
-	*streamLayer
+	*rpc.StreamLayer
 	r *Raft
 }
 
 // clientRPC handles communications with k/v store clients
 type clientRPC struct {
-	*streamLayer
+	*rpc.StreamLayer
 	s *store
 }
 
-func (r *nodeRPC) addNode(req *rpcRequest) error {
+func (r *nodeRPC) addNode(req *rpc.Request) error {
 	return r.r.AddPeer(req.Args[0])
 }
 
-func (r *nodeRPC) removeNode(req *rpcRequest) error {
+func (r *nodeRPC) removeNode(req *rpc.Request) error {
 	return r.r.RemovePeer(req.Args[0])
 }
 
@@ -32,7 +33,7 @@ func (r *nodeRPC) handleConns() {
 	for {
 		conn, err := r.Accept()
 		if err != nil {
-			if err == errClosedConn {
+			if err == rpc.ErrClosedConn {
 				return
 			}
 			continue
@@ -44,7 +45,7 @@ func (r *nodeRPC) handleConns() {
 
 func (r *nodeRPC) handleConn(conn net.Conn) {
 	defer conn.Close()
-	var req rpcRequest
+	var req rpc.Request
 	if err := api.Decode(&req, conn); err != nil {
 		logrus.Errorf("error handling K/V RPC connection: %v", err)
 		return
@@ -62,11 +63,11 @@ func (r *nodeRPC) handleConn(conn net.Conn) {
 	}
 
 	if !r.r.IsLeader() {
-		rpcProxyRequest(r.r.Leader(), &req, conn, r.r.tlsConfig)
+		r.ProxyRequest(r.r.Leader(), &req, conn)
 		return
 	}
 
-	var res rpcResponse
+	var res rpc.Response
 	if err := h(&req); err != nil {
 		res.Err = err.Error()
 	}
@@ -97,7 +98,7 @@ func (r *clientRPC) handleConns() {
 	for {
 		conn, err := r.Accept()
 		if err != nil {
-			if err == errClosedConn {
+			if err == rpc.ErrClosedConn {
 				return
 			}
 			continue
