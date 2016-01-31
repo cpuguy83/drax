@@ -65,14 +65,14 @@ func (r *Raft) getLeader() string {
 	leader := r.Leader()
 	if leader == "" {
 		// best effort to wait for a leader
-		ticker := time.NewTicker(defaultTimeout)
+		ticker := time.NewTicker(250 * time.Millisecond)
 		for range ticker.C {
 			leader = r.Leader()
 			if leader != "" {
-				ticker.Stop()
 				break
 			}
 		}
+		ticker.Stop()
 	}
 	return leader
 }
