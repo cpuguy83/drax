@@ -7,3 +7,5 @@ script:
   - test -z "$(golint ./... | tee /dev/stderr)"
   - test -z "$(gofmt -s -l . | tee /dev/stderr)"
   - go test -v ./...
+environment:
+  DRAX_TEST_HOME: $TRAVIS_BUILD_DIR/test

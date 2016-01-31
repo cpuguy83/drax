@@ -12,6 +12,12 @@ import (
 	"github.com/docker/go-connections/sockets"
 )
 
+var testHome string
+
+func init() {
+	testHome = os.Getenv("DRAX_TEST_HOME")
+}
+
 var clusterDialers = make(map[string]func(network, addr string) (net.Conn, error))
 
 func TestNewCluster(t *testing.T) {
@@ -94,7 +100,7 @@ func newTestCluster(size int, prefixAddr string) ([]*Cluster, error) {
 	var nodes []*Cluster
 	for i := 0; i < size; i++ {
 		addr := prefixAddr + strconv.Itoa(i)
-		home, err := ioutil.TempDir("", addr)
+		home, err := ioutil.TempDir(testHome, addr)
 		if err != nil {
 			return nil, err
 		}
