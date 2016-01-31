@@ -57,7 +57,7 @@ func (c *Cluster) start() error {
 	cfg := raft.DefaultConfig()
 	cfg.ShutdownOnRemove = false
 
-	raftStream := rpc.NewStreamLayer(c.l.Addr(), raftMessage, c.rpcDialer)
+	raftStream := rpc.NewStreamLayer(c.l.Addr(), byte(raftMessage), c.rpcDialer)
 	raftTransport := raft.NewNetworkTransport(raftStream, 3, defaultTimeout, os.Stdout)
 	peerStore := newPeerStore(c.home, raftTransport)
 	c.peers = peerStore
@@ -80,18 +80,18 @@ func (c *Cluster) start() error {
 	kvRaft.store = c.store
 	kvRaft.stream = raftStream
 
-	nodeRPCStream := rpc.NewStreamLayer(c.l.Addr(), api.RPCMessage, c.rpcDialer)
+	nodeRPCStream := rpc.NewStreamLayer(c.l.Addr(), byte(api.RPCMessage), c.rpcDialer)
 	nodeRPC := &nodeRPC{nodeRPCStream, kvRaft}
 	go nodeRPC.handleConns()
 
-	clientRPCStream := rpc.NewStreamLayer(c.l.Addr(), api.ClientMessage, c.rpcDialer)
+	clientRPCStream := rpc.NewStreamLayer(c.l.Addr(), byte(api.ClientMessage), c.rpcDialer)
 	clientRPC := &clientRPC{clientRPCStream, c.store}
 	go clientRPC.handleConns()
 
-	handlers := map[api.MessageType]rpc.Handler{
-		raftMessage:       raftStream,
-		api.RPCMessage:    nodeRPCStream,
-		api.ClientMessage: clientRPCStream,
+	handlers := map[byte]rpc.Handler{
+		byte(raftMessage):       raftStream,
+		byte(api.RPCMessage):    nodeRPCStream,
+		byte(api.ClientMessage): clientRPCStream,
 	}
 
 	c.server = rpc.NewServer(c.l, handlers)

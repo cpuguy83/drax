@@ -18,7 +18,7 @@ type Client struct {
 }
 
 func New(addr string, dialTimeout time.Duration, dialer rpc.DialerFn) *Client {
-	sl := rpc.NewStreamLayer(nil, api.ClientMessage, dialer)
+	sl := rpc.NewStreamLayer(nil, byte(api.ClientMessage), dialer)
 	return &Client{addr, dialTimeout, sl}
 }
 
