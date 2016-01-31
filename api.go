@@ -63,7 +63,7 @@ func (r *nodeRPC) handleConn(conn net.Conn) {
 	}
 
 	if !r.r.IsLeader() {
-		r.ProxyRequest(r.r.Leader(), &req, conn)
+		r.ProxyRequest(r.r.getLeader(), &req, conn)
 		return
 	}
 
