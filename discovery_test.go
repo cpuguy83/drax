@@ -21,7 +21,7 @@ func TestSetPeers(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(peers) != 0 {
-		t.Fatal("expected peers to be empty but got %v", peers)
+		t.Fatalf("expected peers to be empty but got %v", peers)
 	}
 
 	peer := "1.2.3.4:1234"
@@ -35,9 +35,9 @@ func TestSetPeers(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(peers) != 1 {
-		t.Fatal("expected 1 peer, got %v", peers)
+		t.Fatalf("expected 1 peer, got %v", peers)
 	}
 	if peers[0] != peer {
-		t.Fatal("expected peer %s, got %s", peer, peer[0])
+		t.Fatalf("expected peer %s, got %s", peer, peer[0])
 	}
 }
