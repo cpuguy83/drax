@@ -1,5 +1,6 @@
 # Drax
 An embeddable distributed k/v store for Go
+[![Build Status](https://travis-ci.org/cpuguy83/drax.svg?branch=master)](https://travis-ci.org/cpuguy83/drax)
 
 Drax is a distributed k/v store based on raft (specifically https://github.com/hashicorp/raft)
 The intent is to be relatively light-weight and embeddable, while implementing the API from https://github.com/docker/libkv
