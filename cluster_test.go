@@ -12,16 +12,6 @@ import (
 	"github.com/docker/go-connections/sockets"
 )
 
-var testHome string
-
-func init() {
-	testHome = os.Getenv("DRAX_TEST_HOME")
-	if testHome != "" {
-		os.MkdirAll(testHome, 0755)
-	}
-
-}
-
 var clusterDialers = make(map[string]func(network, addr string) (net.Conn, error))
 
 func TestNewCluster(t *testing.T) {
@@ -82,7 +72,7 @@ func TestKVMultiNode(t *testing.T) {
 	timeout := time.After(10 * time.Second)
 	ticker := time.NewTicker(1 * time.Second)
 	for _, n := range nodes {
-		for _ = range ticker.C {
+		for range ticker.C {
 			select {
 			case <-timeout:
 				t.Fatalf("timeout waiting for k/v pair on node %s", n.addr)
@@ -104,7 +94,7 @@ func newTestCluster(size int, prefixAddr string) ([]*Cluster, error) {
 	var nodes []*Cluster
 	for i := 0; i < size; i++ {
 		addr := prefixAddr + strconv.Itoa(i)
-		home, err := ioutil.TempDir(testHome, addr)
+		home, err := ioutil.TempDir("", addr)
 		if err != nil {
 			return nil, err
 		}
