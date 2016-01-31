@@ -38,6 +38,6 @@ func TestSetPeers(t *testing.T) {
 		t.Fatalf("expected 1 peer, got %v", peers)
 	}
 	if peers[0] != peer {
-		t.Fatalf("expected peer %s, got %s", peer, peer[0])
+		t.Fatalf("expected peer %s, got %s", peer, peers[0])
 	}
 }
