@@ -31,6 +31,7 @@ type Cluster struct {
 	r                    *Raft
 	mu                   sync.Mutex
 	rpcDialer            rpc.DialerFn
+	peers                raft.PeerStore
 }
 
 func New(l net.Listener, rpcDialer rpc.DialerFn, home, addr, peer string) (*Cluster, error) {
@@ -59,6 +60,7 @@ func (c *Cluster) start() error {
 	raftStream := rpc.NewStreamLayer(c.l.Addr(), raftMessage, c.rpcDialer)
 	raftTransport := raft.NewNetworkTransport(raftStream, 3, defaultTimeout, os.Stdout)
 	peerStore := newPeerStore(c.home, raftTransport)
+	c.peers = peerStore
 
 	peers, err := peerStore.Peers()
 	if err != nil {
@@ -74,6 +76,7 @@ func (c *Cluster) start() error {
 		return err
 	}
 	c.store.r = kvRaft
+	c.store.dialer = c.rpcDialer
 	kvRaft.store = c.store
 	kvRaft.stream = raftStream
 

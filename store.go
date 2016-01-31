@@ -11,6 +11,7 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/cpuguy83/drax/api"
 	"github.com/cpuguy83/drax/api/client"
+	"github.com/cpuguy83/drax/rpc"
 	libkvstore "github.com/docker/libkv/store"
 	"github.com/hashicorp/raft"
 )
@@ -20,6 +21,7 @@ type store struct {
 	ttlLock sync.Mutex
 	data    *db
 	r       *Raft
+	dialer  rpc.DialerFn
 }
 
 type ttl struct {
@@ -39,7 +41,7 @@ func newDB() *db {
 
 func (s *store) newClient() *client.Client {
 	leader := s.r.getLeader()
-	return client.New(leader, defaultTimeout, nil)
+	return client.New(leader, defaultTimeout, s.dialer)
 }
 
 func newStore() *store {
