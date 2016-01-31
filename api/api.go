@@ -2,13 +2,21 @@ package api
 
 import "time"
 
+// MessageType is used for routing connections to the appropriate handler
 type MessageType byte
+
+// ClientAction is used to route client requests to the appropriate handler
 type ClientAction string
 
 const (
+	// RPCMessage is used the MessageType used for none-to-node communication
 	RPCMessage MessageType = 10 + iota
+	// ClientMessage is the MessageType used for communication from KV clients
 	ClientMessage
+)
 
+// ClientActions used to handle requests from clients
+const (
 	Get          ClientAction = "get"
 	Put          ClientAction = "put"
 	Delete       ClientAction = "delete"
@@ -22,6 +30,7 @@ const (
 	AtomicDelete ClientAction = "atomicDelete"
 )
 
+// Request is used by kv clients when making requests
 type Request struct {
 	Action   ClientAction
 	Key      string
@@ -31,12 +40,14 @@ type Request struct {
 	Args     []string
 }
 
+// KVPair stores the key,value data for use in the Request/Response
 type KVPair struct {
 	Key       string
 	Value     []byte
 	LastIndex uint64
 }
 
+// Response is the response sent to client requests
 type Response struct {
 	Err       string
 	KV        *KVPair

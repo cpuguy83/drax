@@ -17,10 +17,10 @@ import (
 )
 
 var (
-	DefaultRaftPort = "2380"
-	defaultTimeout  = 5 * time.Second
+	defaultTimeout = 5 * time.Second
 )
 
+// Cluster is used to manage all the cluster state for a given node
 type Cluster struct {
 	home, addr, peerAddr string
 	store                *store
@@ -34,6 +34,7 @@ type Cluster struct {
 	peers                raft.PeerStore
 }
 
+// New creates a new Cluster and starts it
 func New(l net.Listener, rpcDialer rpc.DialerFn, home, addr, peer string) (*Cluster, error) {
 	if err := os.MkdirAll(home, 0600); err != nil {
 		return nil, fmt.Errorf("error creating home dir: %v", err)
@@ -116,6 +117,7 @@ func (c *Cluster) start() error {
 	return nil
 }
 
+// Shutdown stops the local cluster node
 func (c *Cluster) Shutdown() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -130,14 +132,17 @@ func (c *Cluster) Shutdown() {
 	close(c.chShutdown)
 }
 
+// KVStore provides access to the underlying KV store
 func (c *Cluster) KVStore() libkvstore.Store {
 	return c.store
 }
 
+// ShutdownCh returns a channel that can be watched to determine if the cluster has been shut down
 func (c *Cluster) ShutdownCh() <-chan struct{} {
 	return c.chShutdown
 }
 
+// Errors returns a channel receiver that callers can use to listen for cluster errors
 func (c *Cluster) Errors() <-chan error {
 	return c.chErrors
 }

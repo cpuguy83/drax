@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/raft-boltdb"
 )
 
+// Raft wraps the underlying raft.Raft with some extra helpers to expose to other, non-raft components
 type Raft struct {
 	r      *raft.Raft
 	trans  *raft.NetworkTransport
@@ -66,7 +67,7 @@ func (r *Raft) getLeader() string {
 	if leader == "" {
 		// best effort to wait for a leader
 		ticker := time.NewTicker(250 * time.Millisecond)
-		for range ticker.C {
+		for _ := range ticker.C {
 			leader = r.Leader()
 			if leader != "" {
 				break
@@ -77,6 +78,7 @@ func (r *Raft) getLeader() string {
 	return leader
 }
 
+// Close shutsdown the raft for the local node
 func (r *Raft) Close() error {
 	if err := r.r.Shutdown().Error(); err != nil {
 		return err
@@ -87,6 +89,8 @@ func (r *Raft) Close() error {
 	return nil
 }
 
+// Apply applies the bytes to the raft log
+// If this is not the leader node, the request is sent to the leader
 func (r *Raft) Apply(b []byte) error {
 	leader := r.r.Leader()
 	if leader == "" {
@@ -110,34 +114,42 @@ func (r *Raft) Apply(b []byte) error {
 	return nil
 }
 
+// IsLeader returns whether this node is the raft leader
 func (r *Raft) IsLeader() bool {
 	return r.r.State() == raft.Leader
 }
 
+// AddPeer adds the given peer to the raft cluster
 func (r *Raft) AddPeer(peer string) error {
 	return r.r.AddPeer(peer).Error()
 }
 
+// RemovePeer removes the given peer from the raft cluster
 func (r *Raft) RemovePeer(peer string) error {
 	return r.r.RemovePeer(peer).Error()
 }
 
+// Peers returns the currnet list of raft peers
 func (r *Raft) Peers() ([]string, error) {
 	return r.peers.Peers()
 }
 
+// SetPeers sets the list of raft peers
 func (r *Raft) SetPeers(peers []string) error {
 	return r.r.SetPeers(peers).Error()
 }
 
+// LeaderCh can be watched for changes in raft node state
 func (r *Raft) LeaderCh() <-chan interface{} {
 	return r.pub.SubscribeTopic(raftStateTopic)
 }
 
+// ShutdownCh can be watched to determine if the raft has been shutdown
 func (r *Raft) ShutdownCh() <-chan struct{} {
 	return r.shutdownCh
 }
 
+// Leader returns the current leader
 func (r *Raft) Leader() string {
 	return r.r.Leader()
 }

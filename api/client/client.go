@@ -11,17 +11,20 @@ import (
 
 var errNotImplemented = errors.New("Call not implemented in current backend")
 
+// Client is used to facilitate communications with a drax cluster
 type Client struct {
 	addr        string
 	dialTimeout time.Duration
 	streamLayer *rpc.StreamLayer
 }
 
+// New creates a new drax Client
 func New(addr string, dialTimeout time.Duration, dialer rpc.DialerFn) *Client {
 	sl := rpc.NewStreamLayer(nil, byte(api.ClientMessage), dialer)
 	return &Client{addr, dialTimeout, sl}
 }
 
+// Get gets the k/v pair for the specified key
 func (c *Client) Get(key string) (*store.KVPair, error) {
 	req := &api.Request{
 		Action: api.Get,
@@ -36,6 +39,7 @@ func (c *Client) Get(key string) (*store.KVPair, error) {
 	return kvToLibKV(res.KV), nil
 }
 
+// Put sets the key to the given value
 func (c *Client) Put(key string, value []byte, options *store.WriteOptions) error {
 	req := &api.Request{
 		Action: api.Put,
@@ -50,6 +54,7 @@ func (c *Client) Put(key string, value []byte, options *store.WriteOptions) erro
 	return err
 }
 
+// Delete deletes the key
 func (c *Client) Delete(key string) error {
 	req := &api.Request{
 		Action: api.Delete,
@@ -60,6 +65,7 @@ func (c *Client) Delete(key string) error {
 	return err
 }
 
+// Exists checks for the existence of a key
 func (c *Client) Exists(key string) (bool, error) {
 	req := &api.Request{
 		Action: api.Exists,
@@ -70,6 +76,7 @@ func (c *Client) Exists(key string) (bool, error) {
 	return res.Exists, err
 }
 
+// List lists the key/value pairs that have the provided key prefix
 func (c *Client) List(prefix string) ([]*store.KVPair, error) {
 	req := &api.Request{
 		Action: api.List,
@@ -92,6 +99,7 @@ func (c *Client) List(prefix string) ([]*store.KVPair, error) {
 	return ls, nil
 }
 
+// DeleteTree deletes the specified dir and all subdirs
 func (c *Client) DeleteTree(dir string) error {
 	req := &api.Request{
 		Action: api.DeleteTree,
@@ -102,18 +110,25 @@ func (c *Client) DeleteTree(dir string) error {
 	return err
 }
 
+// Watch watches a key for changes and notifies the caller
+// Watch is not implemented
 func (c *Client) Watch(key string, stopCh <-chan struct{}) (<-chan *store.KVPair, error) {
 	return nil, errNotImplemented
 }
 
+// WatchTree watches a dir and all subdirs for changes and notifies the caller
+// WatchTree is not implemented
 func (c *Client) WatchTree(dir string, stopCh <-chan struct{}) (<-chan []*store.KVPair, error) {
 	return nil, errNotImplemented
 }
 
+// NewLock creates a new lock that can be used to lock access to the given key, like a sync.Mutex
 func (c *Client) NewLock(key string, options *store.LockOptions) (store.Locker, error) {
 	return nil, errNotImplemented
 }
 
+// AtomicPut is like `Put`, but ensures there are no changes to the key while the action is performed
+// If the key is changed, this returns an error and does not perorm the requested change
 func (c *Client) AtomicPut(key string, value []byte, previous *store.KVPair, options *store.WriteOptions) (bool, *store.KVPair, error) {
 	req := api.Request{
 		Action:   api.AtomicPut,
@@ -130,6 +145,7 @@ func (c *Client) AtomicPut(key string, value []byte, previous *store.KVPair, opt
 	return res.Completed, kvToLibKV(res.KV), nil
 }
 
+// AtomicDelete is like `Delete`, but makes sure the key is not changed while performing the action.
 func (c *Client) AtomicDelete(key string, previous *store.KVPair) (bool, error) {
 	req := api.Request{
 		Action:   api.AtomicDelete,

@@ -11,8 +11,11 @@ import (
 	"github.com/cpuguy83/drax/api"
 )
 
-var retryTimeout = 30
-var ErrClosedConn = errors.New("use of closed network connection")
+var (
+	retryTimeout = 30
+	// ErrClosedConn is the error returned when the underlying listener has been closed
+	ErrClosedConn = errors.New("use of closed network connection")
+)
 
 // DialerFn is the function the StreamLayer should use to Dial out to another node
 type DialerFn func(address string, timeout time.Duration) (net.Conn, error)
@@ -131,7 +134,7 @@ func (l *StreamLayer) RPC(addr string, msg *Request) (*Response, error) {
 	return &res, nil
 }
 
-// RPCProxyRequest is a helper function to proxy an rpc request to another node
+// ProxyRequest is a helper function to proxy an rpc request to another node
 func (l *StreamLayer) ProxyRequest(addr string, msg *Request, from io.ReadWriter) error {
 	conn, err := l.DialWithRetry(addr, time.Duration(retryTimeout)*time.Second, true)
 	if err != nil {
