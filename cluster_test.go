@@ -81,7 +81,7 @@ func TestKVMultiNode(t *testing.T) {
 	timeout := time.After(10 * time.Second)
 	ticker := time.NewTicker(1 * time.Second)
 	for _, n := range nodes {
-		for _ := range ticker.C {
+		for _ = range ticker.C {
 			select {
 			case <-timeout:
 				t.Fatalf("timeout waiting for k/v pair on node %s", n.addr)

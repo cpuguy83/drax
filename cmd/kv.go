@@ -15,7 +15,7 @@ import (
 
 var (
 	flHome = flag.String("home", "/var/lib/drax", "path to db local copy")
-	flAddr = flag.String("addr", fmt.Sprintf("127.0.0.1:%s", drax.DefaultRaftPort), "address to bind")
+	flAddr = flag.String("addr", fmt.Sprintf("127.0.0.1:%s", "2380"), "address to bind")
 	flPeer = flag.String("peer", "", "address of peer")
 )
 
