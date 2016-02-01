@@ -84,7 +84,7 @@ func TestStoreGet(t *testing.T) {
 		t.Fatalf("exepcted key `hello`, got %s", kv.Key)
 	}
 	if string(kv.Value) != "world" {
-		t.Fatal("expected value `world`, got %s", string(kv.Value))
+		t.Fatalf("expected value `world`, got %s", string(kv.Value))
 	}
 }
 
@@ -103,7 +103,7 @@ func TestStorePut(t *testing.T) {
 		t.Fatalf("exepcted key `hello`, got %s", kv.Key)
 	}
 	if string(kv.Value) != "world" {
-		t.Fatal("expected value `world`, got %s", string(kv.Value))
+		t.Fatalf("expected value `world`, got %s", string(kv.Value))
 	}
 }
 
