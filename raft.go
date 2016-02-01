@@ -62,7 +62,8 @@ func newRaft(home, addr string, peerStore *peerStoreWrapper, fsm raft.FSM, trans
 	return raft, nil
 }
 
-func (r *Raft) getLeader() string {
+// GetLeader loops, waiting for the leader
+func (r *Raft) GetLeader() string {
 	leader := r.Leader()
 	if leader == "" {
 		// best effort to wait for a leader

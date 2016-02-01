@@ -16,11 +16,19 @@ import (
 	"github.com/hashicorp/raft"
 )
 
+type raftCluster interface {
+	IsLeader() bool
+	LeaderCh() <-chan interface{}
+	GetLeader() string
+	ShutdownCh() <-chan struct{}
+	Apply([]byte) error
+}
+
 type store struct {
 	mu      sync.RWMutex
 	ttlLock sync.Mutex
 	data    *db
-	r       *Raft
+	r       raftCluster
 	dialer  rpc.DialerFn
 }
 
@@ -40,7 +48,7 @@ func newDB() *db {
 }
 
 func (s *store) newClient() *client.Client {
-	leader := s.r.getLeader()
+	leader := s.r.GetLeader()
 	return client.New(leader, defaultTimeout, s.dialer)
 }
 
