@@ -440,7 +440,7 @@ func (s *storeFSM) checkTreeWatches(key string, kv []*libkvstore.KVPair) {
 			case <-w.stop:
 				close(w.watcher)
 				delete(s.treeWatches, dir)
-				return
+				continue
 			default:
 			}
 		}
