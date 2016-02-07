@@ -44,7 +44,8 @@ You can join a cluster by specifying **any** active peer's address, it does not 
   dialerFn := func(addr string, timeout time.Duration) (net.Conn, error) {
     return net.DialTimeout("tcp", addr, timeout)
   }
-  client := client.New("10.0.0.1:2380", dailerFn)
+  retryTimeout := 10*time.Second
+  client := client.New("10.0.0.1:2380", retryTimeout, dailerFn)
   kvPair, err := client.Get("/foo")
 ```
 

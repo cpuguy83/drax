@@ -9,7 +9,7 @@ import (
 )
 
 func (c *Client) dial() (net.Conn, error) {
-	return c.streamLayer.DialWithRetry(c.addr, c.dialTimeout, true)
+	return c.streamLayer.DialWithRetry(c.addr, c.retryTimeout, true)
 }
 
 func (c *Client) do(req *api.Request) (*api.Response, error) {

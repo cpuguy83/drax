@@ -2,6 +2,7 @@ package client
 
 import (
 	"errors"
+	"time"
 
 	"github.com/cpuguy83/drax/api"
 	"github.com/cpuguy83/drax/rpc"
@@ -12,14 +13,15 @@ var errNotImplemented = errors.New("Call not implemented in current backend")
 
 // Client is used to facilitate communications with a drax cluster
 type Client struct {
-	addr        string
-	streamLayer *rpc.StreamLayer
+	addr         string
+	streamLayer  *rpc.StreamLayer
+	retryTimeout time.Duration
 }
 
 // New creates a new drax Client
-func New(addr string, dialer rpc.DialerFn) *Client {
+func New(addr string, retryTimeout time.Duration, dialer rpc.DialerFn) *Client {
 	sl := rpc.NewStreamLayer(nil, byte(api.ClientMessage), dialer)
-	return &Client{addr, sl}
+	return &Client{addr, sl, retryTimeout}
 }
 
 // Get gets the k/v pair for the specified key
