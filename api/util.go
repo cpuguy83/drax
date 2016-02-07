@@ -5,10 +5,12 @@ import (
 	"io"
 )
 
+// Decoder performs stream decoding of the given value
 type Decoder interface {
 	Decode(interface{}) error
 }
 
+// Encoder performs stream encoding of the given value
 type Encoder interface {
 	Encode(interface{}) error
 }
@@ -23,10 +25,12 @@ func Decode(v interface{}, from io.Reader) error {
 	return json.NewDecoder(from).Decode(v)
 }
 
+// NewDecoder returns a Decoder for performing stream decoding from the given reader
 func NewDecoder(from io.Reader) Decoder {
 	return json.NewDecoder(from)
 }
 
+// NewEncoder returns an Encoder for performing stream encoding from the given reader
 func NewEncoder(to io.Writer) Encoder {
 	return json.NewEncoder(to)
 }

@@ -417,7 +417,7 @@ func (s *storeFSM) checkWatches(key string, kv *libkvstore.KVPair) {
 	default:
 	}
 
-	go func() {
+	go func(w *watch) {
 		select {
 		case w.watcher <- kv:
 		case <-w.stop:
@@ -426,7 +426,7 @@ func (s *storeFSM) checkWatches(key string, kv *libkvstore.KVPair) {
 			delete(s.watches, key)
 			s.watchLock.Unlock()
 		}
-	}()
+	}(w)
 }
 
 func (s *storeFSM) checkTreeWatches(key string, kv []*libkvstore.KVPair) {
@@ -448,7 +448,7 @@ func (s *storeFSM) checkTreeWatches(key string, kv []*libkvstore.KVPair) {
 	s.watchLock.Unlock()
 
 	for dir, w := range watches {
-		go func() {
+		go func(w *treeWatch, dir string) {
 			select {
 			case w.watcher <- kv:
 			case <-w.stop:
@@ -457,7 +457,7 @@ func (s *storeFSM) checkTreeWatches(key string, kv []*libkvstore.KVPair) {
 				delete(s.treeWatches, dir)
 				s.watchLock.Unlock()
 			}
-		}()
+		}(w, dir)
 	}
 }
 
