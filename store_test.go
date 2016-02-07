@@ -219,3 +219,195 @@ func TestStoreDeleteTree(t *testing.T) {
 		t.Fatal("expected error on listing non-existig tree")
 	}
 }
+
+func TestStoreWatchKey(t *testing.T) {
+	s := newStore()
+	s.r = &testRaft{true, s, 0}
+
+	chStop := make(chan struct{})
+	watcher, err := s.Watch("hello", chStop)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.Put("hello", []byte("world"), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case kv, open := <-watcher:
+		if !open {
+			t.Fatal("watcher closed unexpectedly")
+		}
+		if kv.Key != "hello" || string(kv.Value) != "world" {
+			t.Fatalf("got unexpected values from watcher: %s=%s", kv.Key, string(kv.Value))
+		}
+	case <-time.After(10 * time.Millisecond):
+		t.Fatal("timeout waiting for watch")
+	}
+}
+
+func TestStoreWatchKeyStop(t *testing.T) {
+	s := newStore()
+	s.r = &testRaft{true, s, 0}
+
+	chStop := make(chan struct{})
+	watcher, err := s.Watch("hello", chStop)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.Put("hello", []byte("world"), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case kv, open := <-watcher:
+		if !open {
+			t.Fatal("watcher closed unexpectedly")
+		}
+		if kv.Key != "hello" || string(kv.Value) != "world" {
+			t.Fatalf("got unexpected values from watcher: %s=%s", kv.Key, string(kv.Value))
+		}
+	case <-time.After(10 * time.Millisecond):
+		t.Fatal("timeout waiting for watch")
+	}
+
+	close(chStop)
+	if err := s.Put("hello", []byte("world"), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case _, open := <-watcher:
+		if open {
+			t.Fatal("watcher should be closed")
+		}
+
+	case <-time.After(10 * time.Millisecond):
+		t.Fatal("timeout waiting for watch to close")
+	}
+}
+
+func TestStoreWatchKeyCloseOnDelete(t *testing.T) {
+	s := newStore()
+	s.r = &testRaft{true, s, 0}
+
+	chStop := make(chan struct{})
+	watcher, err := s.Watch("hello", chStop)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.Put("hello", []byte("world"), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case kv, open := <-watcher:
+		if !open {
+			t.Fatal("watcher closed unexpectedly")
+		}
+		if kv.Key != "hello" || string(kv.Value) != "world" {
+			t.Fatalf("got unexpected values from watcher: %s=%s", kv.Key, string(kv.Value))
+		}
+	case <-time.After(10 * time.Millisecond):
+		t.Fatal("timeout waiting for watch")
+	}
+
+	if err := s.Delete("hello"); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case _, open := <-watcher:
+		if open {
+			t.Fatal("watcher should be closed")
+		}
+	case <-time.After(10 * time.Millisecond):
+		t.Fatal("timeout waiting for watch to close")
+	}
+}
+
+func TestStoreWatchTree(t *testing.T) {
+	s := newStore()
+	s.r = &testRaft{true, s, 0}
+
+	chStop := make(chan struct{})
+	watcher, err := s.WatchTree("hello/1", chStop)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.Put("hello/1/world", []byte("I am Batman"), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case kvList, open := <-watcher:
+		if !open {
+			t.Fatal("watcher closed unexpectedly")
+		}
+		kv := kvList[0]
+		if kv.Key != "hello/1/world" || string(kv.Value) != "I am Batman" {
+			t.Fatalf("got unexpected values from watcher: %s=%s", kv.Key, string(kv.Value))
+		}
+	case <-time.After(10 * time.Millisecond):
+		t.Fatal("timeout waiting for watch")
+	}
+
+	if err := s.DeleteTree("hello"); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case _, open := <-watcher:
+		if open {
+			t.Fatal("expected watcher to be closed")
+		}
+	case <-time.After(10 * time.Millisecond):
+		t.Fatal("timeout waiting for watch")
+	}
+}
+
+func TestStoreWatchTreeStop(t *testing.T) {
+	s := newStore()
+	s.r = &testRaft{true, s, 0}
+
+	chStop := make(chan struct{})
+	watcher, err := s.WatchTree("hello/1", chStop)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.Put("hello/1/world", []byte("I am Batman"), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case kvList, open := <-watcher:
+		if !open {
+			t.Fatal("watcher closed unexpectedly")
+		}
+		kv := kvList[0]
+		if kv.Key != "hello/1/world" || string(kv.Value) != "I am Batman" {
+			t.Fatalf("got unexpected values from watcher: %s=%s", kv.Key, string(kv.Value))
+		}
+	case <-time.After(10 * time.Millisecond):
+		t.Fatal("timeout waiting for watch")
+	}
+
+	close(chStop)
+	if err := s.DeleteTree("hello"); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case _, open := <-watcher:
+		if open {
+			t.Fatal("expected watcher to be closed")
+		}
+	case <-time.After(10 * time.Millisecond):
+		t.Fatal("timeout waiting for watch")
+	}
+}

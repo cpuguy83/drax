@@ -2,6 +2,7 @@ package client
 
 import (
 	"fmt"
+	"io"
 	"net"
 
 	"github.com/cpuguy83/drax/api"
@@ -31,6 +32,17 @@ func (c *Client) do(req *api.Request) (*api.Response, error) {
 		return nil, fmt.Errorf("store error: %s", res.Err)
 	}
 	return &res, nil
+}
+
+func (c *Client) stream(req *api.Request) (io.ReadCloser, error) {
+	conn, err := c.dial()
+	if err != nil {
+		return nil, err
+	}
+	if err := api.Encode(&req, conn); err != nil {
+		return nil, err
+	}
+	return conn, nil
 }
 
 func kvToLibKV(kv *api.KVPair) *store.KVPair {
