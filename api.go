@@ -1,6 +1,7 @@
 package drax
 
 import (
+	"io"
 	"net"
 
 	"github.com/Sirupsen/logrus"
@@ -74,24 +75,65 @@ func (r *nodeRPC) handleConn(conn net.Conn) {
 	api.Encode(&res, conn)
 }
 
-func (r *clientRPC) Get(req *api.Request) *api.Response {
+func (r *clientRPC) Get(conn io.Writer, req *clientRequest) {
 	var res api.Response
 	kv, err := r.s.Get(req.Key)
 	if err != nil {
 		res.Err = err.Error()
-		return &res
+		api.Encode(&res, conn)
+		return
 	}
 	res.KV = libkvToKV(kv)
-	return &res
+	api.Encode(&res, conn)
 }
 
-func (r *clientRPC) Put(req *api.Request) *api.Response {
+func (r *clientRPC) Put(conn io.Writer, req *clientRequest) {
 	var res api.Response
 	err := r.s.Put(req.Key, req.Value, &libkvstore.WriteOptions{TTL: req.TTL})
 	if err != nil {
 		res.Err = err.Error()
 	}
-	return &res
+	api.Encode(res, conn)
+}
+
+func waitClose(conn io.Reader, chStop chan struct{}) {
+	buf := make([]byte, 1)
+	for {
+		_, err := conn.Read(buf)
+		if err == io.EOF {
+			close(chStop)
+		}
+		continue
+	}
+}
+
+func (r *clientRPC) Watch(conn io.Writer, req *clientRequest) {
+	chStop := make(chan struct{})
+	go waitClose(req.body, chStop)
+	chKv, err := r.s.Watch(req.Key, chStop)
+	if err != nil {
+		return
+	}
+	for kv := range chKv {
+		api.Encode(libkvToKV(kv), conn)
+	}
+}
+
+func (r *clientRPC) WatchTree(conn io.Writer, req *clientRequest) {
+	chStop := make(chan struct{})
+	go waitClose(req.body, chStop)
+	chKv, err := r.s.WatchTree(req.Key, chStop)
+	if err != nil {
+		return
+	}
+	var apiKVList []*api.KVPair
+	for kvList := range chKv {
+		for _, kv := range kvList {
+			apiKVList = append(apiKVList, libkvToKV(kv))
+		}
+		api.Encode(apiKVList, conn)
+		apiKVList = nil
+	}
 }
 
 func (r *clientRPC) handleConns() {
@@ -103,12 +145,15 @@ func (r *clientRPC) handleConns() {
 			}
 			continue
 		}
-
 		go r.handleConn(conn)
 	}
 }
 
-type clientRPCHandlerFn func(*api.Request) *api.Response
+type clientRPCHandlerFn func(io.Writer, *clientRequest)
+type clientRequest struct {
+	*api.Request
+	body io.Reader
+}
 
 func (r *clientRPC) handleConn(conn net.Conn) {
 	defer conn.Close()
@@ -127,9 +172,13 @@ func (r *clientRPC) handleConn(conn net.Conn) {
 		h = r.Get
 	case api.Put:
 		h = r.Put
+	case api.Watch:
+		h = r.Watch
+	case api.WatchTree:
+		h = r.WatchTree
 	}
 
-	api.Encode(h(&req), conn)
+	h(conn, &clientRequest{&req, conn})
 }
 
 func libkvToKV(kv *libkvstore.KVPair) *api.KVPair {

@@ -25,11 +25,24 @@ type raftCluster interface {
 }
 
 type store struct {
-	mu      sync.RWMutex
-	ttlLock sync.Mutex
-	data    *db
-	r       raftCluster
-	dialer  rpc.DialerFn
+	mu          sync.RWMutex
+	watchLock   sync.Mutex
+	ttlLock     sync.Mutex
+	data        *db
+	r           raftCluster
+	dialer      rpc.DialerFn
+	watches     map[string]*watch
+	treeWatches map[string]*treeWatch
+}
+
+type watch struct {
+	stop    <-chan struct{}
+	watcher chan *libkvstore.KVPair
+}
+
+type treeWatch struct {
+	stop    <-chan struct{}
+	watcher chan []*libkvstore.KVPair
 }
 
 type ttl struct {
@@ -53,7 +66,7 @@ func (s *store) newClient() *client.Client {
 }
 
 func newStore() *store {
-	return &store{data: newDB()}
+	return &store{data: newDB(), watches: make(map[string]*watch), treeWatches: make(map[string]*treeWatch)}
 }
 
 func (s *store) Get(key string) (*libkvstore.KVPair, error) {
@@ -154,14 +167,22 @@ func (s *store) Watch(key string, stopCh <-chan struct{}) (<-chan *libkvstore.KV
 	if !s.r.IsLeader() {
 		return s.newClient().Watch(key, stopCh)
 	}
-	return nil, libkvstore.ErrCallNotSupported
+	s.watchLock.Lock()
+	chKV := make(chan *libkvstore.KVPair)
+	s.watches[key] = &watch{watcher: chKV, stop: stopCh}
+	s.watchLock.Unlock()
+	return chKV, nil
 }
 
 func (s *store) WatchTree(dir string, stopCh <-chan struct{}) (<-chan []*libkvstore.KVPair, error) {
 	if !s.r.IsLeader() {
 		return s.newClient().WatchTree(dir, stopCh)
 	}
-	return nil, libkvstore.ErrCallNotSupported
+	s.watchLock.Lock()
+	chKV := make(chan []*libkvstore.KVPair)
+	s.treeWatches[dir] = &treeWatch{watcher: chKV, stop: stopCh}
+	s.watchLock.Unlock()
+	return chKV, nil
 }
 
 func (s *store) NewLock(key string, options *libkvstore.LockOptions) (libkvstore.Locker, error) {
@@ -315,7 +336,6 @@ func ttlDue(t *ttl) bool {
 
 type storeFSM store
 
-// TODO: handle watches
 func (s *storeFSM) Apply(l *raft.Log) interface{} {
 	var ax api.Request
 	if err := api.Decode(&ax, bytes.NewBuffer(l.Data)); err != nil {
@@ -326,13 +346,17 @@ func (s *storeFSM) Apply(l *raft.Log) interface{} {
 	case api.Delete:
 		delete(s.data.KV, ax.Key)
 		delete(s.data.TTLs, ax.Key)
+		s.closeWatches(ax.Key)
 	case api.Put:
-		s.data.KV[ax.Key] = &libkvstore.KVPair{Key: ax.Key, Value: ax.Value, LastIndex: l.Index}
+		kv := &libkvstore.KVPair{Key: ax.Key, Value: ax.Value, LastIndex: l.Index}
+		s.data.KV[ax.Key] = kv
 		if ax.TTL != 0 {
 			s.ttlLock.Lock()
 			s.data.TTLs[ax.Key] = &ttl{CreateTime: time.Now(), TTL: ax.TTL, CreateIndex: l.Index}
 			s.ttlLock.Unlock()
 		}
+		s.checkWatches(ax.Key, kv)
+		s.checkTreeWatches(ax.Key, []*libkvstore.KVPair{kv})
 	case api.DeleteTree:
 		for k := range s.data.KV {
 			if !strings.HasPrefix(k, ax.Key) {
@@ -340,6 +364,7 @@ func (s *storeFSM) Apply(l *raft.Log) interface{} {
 			}
 			delete(s.data.KV, k)
 			delete(s.data.TTLs, k)
+			s.closeWatches(ax.Key)
 		}
 	case reapKeys:
 		s.mu.Lock()
@@ -372,3 +397,90 @@ func (s *storeFSM) Persist(sink raft.SnapshotSink) error {
 }
 
 func (*storeFSM) Release() {}
+
+func (s *storeFSM) checkWatches(key string, kv *libkvstore.KVPair) {
+	s.watchLock.Lock()
+	w, exists := s.watches[key]
+	s.watchLock.Unlock()
+	if !exists {
+		return
+	}
+
+	// prevent races with sending and checking the closed channel
+	select {
+	case <-w.stop:
+		s.watchLock.Lock()
+		close(w.watcher)
+		delete(s.watches, key)
+		s.watchLock.Unlock()
+		return
+	default:
+	}
+
+	go func(w *watch) {
+		select {
+		case w.watcher <- kv:
+		case <-w.stop:
+			s.watchLock.Lock()
+			close(w.watcher)
+			delete(s.watches, key)
+			s.watchLock.Unlock()
+		}
+	}(w)
+}
+
+func (s *storeFSM) checkTreeWatches(key string, kv []*libkvstore.KVPair) {
+	s.watchLock.Lock()
+	var watches = make(map[string]*treeWatch)
+	for dir, w := range s.treeWatches {
+		if strings.HasPrefix(key, dir) {
+			watches[dir] = w
+			// prevent races with sending and checking the closed channel
+			select {
+			case <-w.stop:
+				close(w.watcher)
+				delete(s.treeWatches, dir)
+				return
+			default:
+			}
+		}
+	}
+	s.watchLock.Unlock()
+
+	for dir, w := range watches {
+		go func(w *treeWatch, dir string) {
+			select {
+			case w.watcher <- kv:
+			case <-w.stop:
+				s.watchLock.Lock()
+				close(w.watcher)
+				delete(s.treeWatches, dir)
+				s.watchLock.Unlock()
+			}
+		}(w, dir)
+	}
+}
+
+func (s *storeFSM) closeWatches(key string) {
+	s.watchLock.Lock()
+	if w, exists := s.watches[key]; exists {
+		close(w.watcher)
+		delete(s.watches, key)
+	}
+
+	for dir, w := range s.treeWatches {
+		// key is dir
+		if dir == key {
+			delete(s.treeWatches, key)
+			close(w.watcher)
+			continue
+		}
+
+		// dir is underneath key, recurrsive delete
+		if strings.HasPrefix(dir, key) {
+			delete(s.treeWatches, key)
+			close(w.watcher)
+		}
+	}
+	s.watchLock.Unlock()
+}

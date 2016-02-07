@@ -2,6 +2,7 @@ package client
 
 import (
 	"errors"
+	"io"
 	"time"
 
 	"github.com/cpuguy83/drax/api"
@@ -113,13 +114,85 @@ func (c *Client) DeleteTree(dir string) error {
 // Watch watches a key for changes and notifies the caller
 // Watch is not implemented
 func (c *Client) Watch(key string, stopCh <-chan struct{}) (<-chan *store.KVPair, error) {
-	return nil, errNotImplemented
+	req := &api.Request{
+		Action: api.Watch,
+		Key:    key,
+	}
+	conn, err := c.stream(req)
+	if err != nil {
+		return nil, err
+	}
+
+	var kv api.KVPair
+	dec := api.NewDecoder(conn)
+	chKV := make(chan *store.KVPair)
+	go func() {
+		defer conn.Close()
+		for {
+			select {
+			case <-stopCh:
+				return
+			default:
+				if err := dec.Decode(&kv); err != nil {
+					if err != io.EOF {
+						dec = api.NewDecoder(conn)
+						continue
+					}
+					return
+				}
+				select {
+				case chKV <- kvToLibKV(&kv):
+				case <-stopCh:
+					return
+				}
+			}
+		}
+	}()
+
+	return chKV, nil
 }
 
 // WatchTree watches a dir and all subdirs for changes and notifies the caller
-// WatchTree is not implemented
 func (c *Client) WatchTree(dir string, stopCh <-chan struct{}) (<-chan []*store.KVPair, error) {
-	return nil, errNotImplemented
+	req := &api.Request{
+		Action: api.WatchTree,
+		Key:    dir,
+	}
+	conn, err := c.stream(req)
+	if err != nil {
+		return nil, err
+	}
+
+	var kv []*api.KVPair
+	dec := api.NewDecoder(conn)
+	chKV := make(chan []*store.KVPair)
+	go func() {
+		defer conn.Close()
+		for {
+			select {
+			case <-stopCh:
+				return
+			default:
+				if err := dec.Decode(&kv); err != nil {
+					if err != io.EOF {
+						dec = api.NewDecoder(conn)
+						continue
+					}
+					return
+				}
+				var kvList []*store.KVPair
+				for _, apiKv := range kv {
+					kvList = append(kvList, kvToLibKV(apiKv))
+				}
+				select {
+				case chKV <- kvList:
+				case <-stopCh:
+					return
+				}
+			}
+		}
+	}()
+	return chKV, err
 }
 
 // NewLock creates a new lock that can be used to lock access to the given key, like a sync.Mutex
