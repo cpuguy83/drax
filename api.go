@@ -136,6 +136,68 @@ func (r *clientRPC) WatchTree(conn io.Writer, req *clientRequest) {
 	}
 }
 
+func (r *clientRPC) List(conn io.Writer, req *clientRequest) {
+	var res api.Response
+	ls, err := r.s.List(req.Key)
+	if err != nil {
+		res.Err = err.Error()
+	}
+
+	var apiLs []*api.KVPair
+	for _, kv := range ls {
+		apiLs = append(apiLs, libkvToKV(kv))
+	}
+	res.List = apiLs
+	api.NewEncoder(conn).Encode(&res)
+}
+
+func (r *clientRPC) DeleteTree(conn io.Writer, req *clientRequest) {
+	var res api.Response
+	if err := r.s.DeleteTree(req.Key); err != nil {
+		res.Err = err.Error()
+	}
+	api.NewEncoder(conn).Encode(&res)
+}
+
+func (r *clientRPC) Delete(conn io.Writer, req *clientRequest) {
+	var res api.Response
+	if err := r.s.Delete(req.Key); err != nil {
+		res.Err = err.Error()
+	}
+	api.NewEncoder(conn).Encode(&res)
+}
+
+func (r *clientRPC) Exists(conn io.Writer, req *clientRequest) {
+	var res api.Response
+	exists, err := r.s.Exists(req.Key)
+	if err != nil {
+		res.Err = err.Error()
+	}
+	res.Exists = exists
+	api.NewEncoder(conn).Encode(&res)
+}
+
+func (r *clientRPC) AtomicPut(conn io.Writer, req *clientRequest) {
+	var res api.Response
+	ok, kv, err := r.s.AtomicPut(req.Key, req.Value, kvToLibKV(req.Previous), &libkvstore.WriteOptions{TTL: req.TTL})
+	if err != nil {
+		res.Err = err.Error()
+	}
+	res.Completed = ok
+	res.KV = libkvToKV(kv)
+	api.NewEncoder(conn).Encode(&res)
+}
+
+func (r *clientRPC) AtomicDelete(conn io.Writer, req *clientRequest) {
+	var res api.Response
+	ok, err := r.s.AtomicDelete(req.Key, kvToLibKV(req.Previous))
+	if err != nil {
+		res.Err = err.Error()
+	}
+	res.Completed = ok
+	api.NewEncoder(conn).Encode(&res)
+}
+
 func (r *clientRPC) handleConns() {
 	for {
 		conn, err := r.Accept()
@@ -176,6 +238,14 @@ func (r *clientRPC) handleConn(conn net.Conn) {
 		h = r.Watch
 	case api.WatchTree:
 		h = r.WatchTree
+	case api.List:
+		h = r.List
+	case api.DeleteTree:
+		h = r.DeleteTree
+	case api.AtomicPut:
+		h = r.AtomicPut
+	case api.AtomicDelete:
+		h = r.AtomicDelete
 	}
 
 	h(conn, &clientRequest{&req, conn})
@@ -183,6 +253,14 @@ func (r *clientRPC) handleConn(conn net.Conn) {
 
 func libkvToKV(kv *libkvstore.KVPair) *api.KVPair {
 	return &api.KVPair{
+		Key:       kv.Key,
+		Value:     kv.Value,
+		LastIndex: kv.LastIndex,
+	}
+}
+
+func kvToLibKV(kv *api.KVPair) *libkvstore.KVPair {
+	return &libkvstore.KVPair{
 		Key:       kv.Key,
 		Value:     kv.Value,
 		LastIndex: kv.LastIndex,
