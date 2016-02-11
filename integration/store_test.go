@@ -1,15 +1,12 @@
 package integration
 
 import (
-	"net"
 	"testing"
 
 	"github.com/cpuguy83/drax"
 	"github.com/cpuguy83/drax/api/errors"
 	"github.com/docker/distribution/registry/api/errcode"
 )
-
-var clusterDialers = make(map[string]func(network, addr string) (net.Conn, error))
 
 func TestStoreGetPutDelete(t *testing.T) {
 	nodes, err := newTestCluster(3, "test")
