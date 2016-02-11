@@ -16,6 +16,12 @@ import (
 	"github.com/hashicorp/raft"
 )
 
+var (
+	ErrKeyNotFound      = libkvstore.ErrKeyNotFound
+	ErrKeyModified      = libkvstore.ErrKeyModified
+	ErrCallNotSupported = libkvstore.ErrCallNotSupported
+)
+
 type raftCluster interface {
 	IsLeader() bool
 	LeaderCh() <-chan interface{}
@@ -81,7 +87,7 @@ func (s *store) Get(key string) (*libkvstore.KVPair, error) {
 func (s *store) get(key string) (*libkvstore.KVPair, error) {
 	kv, ok := s.data.KV[key]
 	if !ok {
-		return nil, libkvstore.ErrKeyNotFound
+		return nil, ErrKeyNotFound
 	}
 	return kv, nil
 }
@@ -146,7 +152,7 @@ func (s *store) List(prefix string) ([]*libkvstore.KVPair, error) {
 	}
 
 	if len(out) == 0 {
-		return nil, libkvstore.ErrKeyNotFound
+		return nil, ErrKeyNotFound
 	}
 	return out, nil
 }
@@ -189,7 +195,7 @@ func (s *store) NewLock(key string, options *libkvstore.LockOptions) (libkvstore
 	if !s.r.IsLeader() {
 		return s.newClient().NewLock(key, options)
 	}
-	return nil, libkvstore.ErrCallNotSupported
+	return nil, ErrCallNotSupported
 }
 
 func (s *store) AtomicPut(key string, value []byte, previous *libkvstore.KVPair, options *libkvstore.WriteOptions) (bool, *libkvstore.KVPair, error) {
@@ -201,14 +207,14 @@ func (s *store) AtomicPut(key string, value []byte, previous *libkvstore.KVPair,
 
 	kv, err := s.get(key)
 	if err != nil {
-		if previous != nil && err == libkvstore.ErrKeyNotFound {
-			return false, nil, libkvstore.ErrKeyModified
+		if previous != nil && err == ErrKeyNotFound {
+			return false, nil, ErrKeyModified
 		}
 		return false, nil, err
 	}
 
 	if previous != nil && kv.LastIndex != previous.LastIndex {
-		return false, nil, libkvstore.ErrKeyModified
+		return false, nil, ErrKeyModified
 	}
 
 	req := &api.Request{
@@ -243,12 +249,12 @@ func (s *store) AtomicDelete(key string, previous *libkvstore.KVPair) (bool, err
 
 	kv, err := s.get(key)
 	if err != nil {
-		if err == libkvstore.ErrKeyModified {
+		if err == ErrKeyModified {
 			return false, err
 		}
 	}
 	if kv.LastIndex != previous.LastIndex {
-		return false, libkvstore.ErrKeyModified
+		return false, ErrKeyModified
 	}
 	if err := s.apply(&api.Request{
 		Action: api.Delete,

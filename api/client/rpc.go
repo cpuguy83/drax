@@ -28,8 +28,8 @@ func (c *Client) do(req *api.Request) (*api.Response, error) {
 	if err := api.Decode(&res, conn); err != nil {
 		return nil, fmt.Errorf("error decoding response: %v", err)
 	}
-	if res.Err != "" {
-		return nil, fmt.Errorf("store error: %s", res.Err)
+	if res.Err != nil {
+		return nil, *res.Err
 	}
 	return &res, nil
 }

@@ -179,3 +179,13 @@ func (c *Cluster) handleLeader(leaderCh <-chan interface{}) {
 		time.Sleep(5 * time.Second)
 	}
 }
+
+// Addr cluster is available on
+func (c *Cluster) Addr() string {
+	return c.addr
+}
+
+// Home is the home path where the cluster state is stored
+func (c *Cluster) Home() string {
+	return c.home
+}

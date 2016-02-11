@@ -6,7 +6,9 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/cpuguy83/drax/api"
+	"github.com/cpuguy83/drax/api/errors"
 	"github.com/cpuguy83/drax/rpc"
+	"github.com/docker/distribution/registry/api/errcode"
 	libkvstore "github.com/docker/libkv/store"
 )
 
@@ -79,7 +81,7 @@ func (r *clientRPC) Get(conn io.Writer, req *clientRequest) {
 	var res api.Response
 	kv, err := r.s.Get(req.Key)
 	if err != nil {
-		res.Err = err.Error()
+		setError(&res, err)
 		api.Encode(&res, conn)
 		return
 	}
@@ -91,7 +93,7 @@ func (r *clientRPC) Put(conn io.Writer, req *clientRequest) {
 	var res api.Response
 	err := r.s.Put(req.Key, req.Value, &libkvstore.WriteOptions{TTL: req.TTL})
 	if err != nil {
-		res.Err = err.Error()
+		setError(&res, err)
 	}
 	api.Encode(res, conn)
 }
@@ -140,7 +142,7 @@ func (r *clientRPC) List(conn io.Writer, req *clientRequest) {
 	var res api.Response
 	ls, err := r.s.List(req.Key)
 	if err != nil {
-		res.Err = err.Error()
+		setError(&res, err)
 	}
 
 	var apiLs []*api.KVPair
@@ -154,7 +156,7 @@ func (r *clientRPC) List(conn io.Writer, req *clientRequest) {
 func (r *clientRPC) DeleteTree(conn io.Writer, req *clientRequest) {
 	var res api.Response
 	if err := r.s.DeleteTree(req.Key); err != nil {
-		res.Err = err.Error()
+		setError(&res, err)
 	}
 	api.NewEncoder(conn).Encode(&res)
 }
@@ -162,7 +164,7 @@ func (r *clientRPC) DeleteTree(conn io.Writer, req *clientRequest) {
 func (r *clientRPC) Delete(conn io.Writer, req *clientRequest) {
 	var res api.Response
 	if err := r.s.Delete(req.Key); err != nil {
-		res.Err = err.Error()
+		setError(&res, err)
 	}
 	api.NewEncoder(conn).Encode(&res)
 }
@@ -171,7 +173,7 @@ func (r *clientRPC) Exists(conn io.Writer, req *clientRequest) {
 	var res api.Response
 	exists, err := r.s.Exists(req.Key)
 	if err != nil {
-		res.Err = err.Error()
+		setError(&res, err)
 	}
 	res.Exists = exists
 	api.NewEncoder(conn).Encode(&res)
@@ -181,10 +183,11 @@ func (r *clientRPC) AtomicPut(conn io.Writer, req *clientRequest) {
 	var res api.Response
 	ok, kv, err := r.s.AtomicPut(req.Key, req.Value, kvToLibKV(req.Previous), &libkvstore.WriteOptions{TTL: req.TTL})
 	if err != nil {
-		res.Err = err.Error()
+		setError(&res, err)
+	} else {
+		res.Completed = ok
+		res.KV = libkvToKV(kv)
 	}
-	res.Completed = ok
-	res.KV = libkvToKV(kv)
 	api.NewEncoder(conn).Encode(&res)
 }
 
@@ -192,7 +195,7 @@ func (r *clientRPC) AtomicDelete(conn io.Writer, req *clientRequest) {
 	var res api.Response
 	ok, err := r.s.AtomicDelete(req.Key, kvToLibKV(req.Previous))
 	if err != nil {
-		res.Err = err.Error()
+		setError(&res, err)
 	}
 	res.Completed = ok
 	api.NewEncoder(conn).Encode(&res)
@@ -264,5 +267,25 @@ func kvToLibKV(kv *api.KVPair) *libkvstore.KVPair {
 		Key:       kv.Key,
 		Value:     kv.Value,
 		LastIndex: kv.LastIndex,
+	}
+}
+
+func setError(res *api.Response, err error) {
+	if err == nil {
+		return
+	}
+	switch err {
+	case ErrKeyNotFound:
+		e := errors.StoreKeyNotFound.WithMessage(err.Error())
+		res.Err = &e
+	case ErrKeyModified:
+		e := errors.StoreKeyModified.WithMessage(err.Error())
+		res.Err = &e
+	case ErrCallNotSupported:
+		e := errcode.ErrorCodeUnsupported.WithMessage(err.Error())
+		res.Err = &e
+	default:
+		e := errcode.ErrorCodeUnknown.WithMessage(err.Error())
+		res.Err = &e
 	}
 }

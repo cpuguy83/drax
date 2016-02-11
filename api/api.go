@@ -1,6 +1,10 @@
 package api
 
-import "time"
+import (
+	"time"
+
+	"github.com/docker/distribution/registry/api/errcode"
+)
 
 // MessageType is used for routing connections to the appropriate handler
 type MessageType byte
@@ -49,7 +53,7 @@ type KVPair struct {
 
 // Response is the response sent to client requests
 type Response struct {
-	Err       string
+	Err       *errcode.Error
 	KV        *KVPair
 	List      []*KVPair
 	Exists    bool
