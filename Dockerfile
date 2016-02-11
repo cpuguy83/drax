@@ -6,6 +6,7 @@ RUN go get github.com/hashicorp/raft && \
   go get github.com/docker/libkv/store && \
   go get github.com/hashicorp/raft-boltdb && \
   go get github.com/docker/go-connections && \
+  go get github.com/docker/distribution/api/errorcode && \
   go get github.com/opencontainers/libcontainer # this is used by go-connections/sockets
 
 COPY . /go/src/github.com/cpuguy83/drax
