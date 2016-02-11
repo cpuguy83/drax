@@ -17,8 +17,11 @@ import (
 )
 
 var (
-	ErrKeyNotFound      = libkvstore.ErrKeyNotFound
-	ErrKeyModified      = libkvstore.ErrKeyModified
+	// ErrKeyNotFound - Key does not exist in the store
+	ErrKeyNotFound = libkvstore.ErrKeyNotFound
+	// ErrKeyModified - Key was modified during atomic operation
+	ErrKeyModified = libkvstore.ErrKeyModified
+	// ErrCallNotSupported - call is not supported
 	ErrCallNotSupported = libkvstore.ErrCallNotSupported
 )
 
