@@ -61,9 +61,7 @@ You can also communicate with the k/v store directly from the cluster:
 This also implements libkv's `Store` interface.
 
 ###TODO:
-- Add tests
-- Add support for (libkv) watches
+- Add (more) tests
 - Improve RPC semantics
 - Look at using something other than JSON for encoding/decoding K/V messages, and RPC messages
-- Add more documentation (both in code and examples)
 - Implement cluster management, adding/removing nodes to the store cluster as needed
