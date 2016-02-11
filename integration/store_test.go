@@ -25,7 +25,7 @@ func TestStoreGetPutDelete(t *testing.T) {
 	defer cleanupNodes(nodes)
 
 	if len(nodes) != 3 {
-		t.Fatal("expected 3 nodes, got %d", len(nodes))
+		t.Fatalf("expected 3 nodes, got %d", len(nodes))
 	}
 
 	// Test key doesn't exist
