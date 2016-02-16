@@ -243,6 +243,8 @@ func (r *clientRPC) handleConn(conn net.Conn) {
 		h = r.WatchTree
 	case api.List:
 		h = r.List
+	case api.Delete:
+		h = r.Delete
 	case api.DeleteTree:
 		h = r.DeleteTree
 	case api.AtomicPut:
