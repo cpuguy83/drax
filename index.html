@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="UTF-8">
+    <title>Drax by cpuguy83</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="stylesheets/normalize.css" media="screen">
+    <link href='https://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/github-light.css" media="screen">
+  </head>
+  <body>
+    <section class="page-header">
+      <h1 class="project-name">Drax</h1>
+      <h2 class="project-tagline">An embeddable distributed k/v store for Go</h2>
+      <a href="https://github.com/cpuguy83/drax" class="btn">View on GitHub</a>
+      <a href="https://github.com/cpuguy83/drax/zipball/master" class="btn">Download .zip</a>
+      <a href="https://github.com/cpuguy83/drax/tarball/master" class="btn">Download .tar.gz</a>
+    </section>
+
+    <section class="main-content">
+      <h1>
+<a id="drax" class="anchor" href="#drax" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Drax</h1>
+
+<p>An embeddable distributed k/v store for Go
+<a href="https://travis-ci.org/cpuguy83/drax"><img src="https://travis-ci.org/cpuguy83/drax.svg?branch=master" alt="Build Status"></a></p>
+
+<p>Drax is a distributed k/v store based on raft (specifically <a href="https://github.com/hashicorp/raft">https://github.com/hashicorp/raft</a>)
+The intent is to be relatively light-weight and embeddable, while implementing the API from <a href="https://github.com/docker/libkv">https://github.com/docker/libkv</a></p>
+
+<p>Drax is NOT intended for production use. Use at your own risk.
+This should be considered ALPHA quality.</p>
+
+<p>Boltdb is used to persist raft logs (and as such the K/V data)</p>
+
+<h3>
+<a id="usage" class="anchor" href="#usage" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Usage</h3>
+
+<p>For running the server, see <code>cmd/kv.go</code> as an example to get going.</p>
+
+<p><strong>Server Side</strong></p>
+
+<div class="highlight highlight-source-go"><pre>  <span class="pl-c">// on node 1</span>
+  <span class="pl-smi">listener</span>, <span class="pl-smi">_</span> <span class="pl-k">:=</span> net.<span class="pl-c1">Listen</span>(<span class="pl-s"><span class="pl-pds">"</span>tcp<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>10.0.0.1:2380<span class="pl-pds">"</span></span>)
+  <span class="pl-smi">peerAddr</span> <span class="pl-k">:=</span> <span class="pl-s"><span class="pl-pds">"</span><span class="pl-pds">"</span></span>
+  <span class="pl-smi">dialerFn</span> <span class="pl-k">:=</span> <span class="pl-c1">func</span>(addr <span class="pl-k">string</span>, timeout time.<span class="pl-smi">Duration</span>) (net.<span class="pl-smi">Conn</span>, <span class="pl-k">error</span>) {
+    <span class="pl-k">return</span> net.<span class="pl-c1">DialTimeout</span>(<span class="pl-s"><span class="pl-pds">"</span>tcp<span class="pl-pds">"</span></span>, addr, timeout)
+  }
+  <span class="pl-smi">cluster</span>, <span class="pl-smi">_</span> <span class="pl-k">:=</span> drax.<span class="pl-c1">New</span>(listener, dialerFn, <span class="pl-s"><span class="pl-pds">"</span>/var/lib/drax<span class="pl-pds">"</span></span>, listener.<span class="pl-c1">Addr</span>().<span class="pl-c1">String</span>(), peerAddr)
+
+
+  <span class="pl-c">// on node 2</span>
+  <span class="pl-smi">listener</span>, <span class="pl-smi">_</span> <span class="pl-k">:=</span> net.<span class="pl-c1">Listen</span>(<span class="pl-s"><span class="pl-pds">"</span>tcp<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>10.0.0.2:2380<span class="pl-pds">"</span></span>)
+  <span class="pl-smi">peerAddr</span> <span class="pl-k">:=</span> <span class="pl-s"><span class="pl-pds">"</span>10.0.0.1:2380<span class="pl-pds">"</span></span>
+  <span class="pl-smi">dialerFn</span> <span class="pl-k">:=</span> <span class="pl-c1">func</span>(addr <span class="pl-k">string</span>, timeout time.<span class="pl-smi">Duration</span>) (net.<span class="pl-smi">Conn</span>, <span class="pl-k">error</span>) {
+    <span class="pl-k">return</span> net.<span class="pl-c1">DialTimeout</span>(<span class="pl-s"><span class="pl-pds">"</span>tcp<span class="pl-pds">"</span></span>, addr, timeout)
+  }
+  <span class="pl-smi">cluster</span>, <span class="pl-smi">_</span> <span class="pl-k">:=</span> drax.<span class="pl-c1">New</span>(listener, dialerFn, <span class="pl-s"><span class="pl-pds">"</span>/var/lib/drax<span class="pl-pds">"</span></span>, listener.<span class="pl-c1">Addr</span>().<span class="pl-c1">String</span>(), peerAddr)</pre></div>
+
+<p>A node that does not specify a peer, and that does not already contain a peer in it's peer store
+will be setup in single node mode and made the leader. Once it is the leader it will exit single-node mode.</p>
+
+<p>You can join a cluster by specifying <strong>any</strong> active peer's address, it does not need to be the leader.</p>
+
+<p><strong>Client side</strong></p>
+
+<div class="highlight highlight-source-go"><pre>  <span class="pl-smi">dialerFn</span> <span class="pl-k">:=</span> <span class="pl-c1">func</span>(addr <span class="pl-k">string</span>, timeout time.<span class="pl-smi">Duration</span>) (net.<span class="pl-smi">Conn</span>, <span class="pl-k">error</span>) {
+    <span class="pl-k">return</span> net.<span class="pl-c1">DialTimeout</span>(<span class="pl-s"><span class="pl-pds">"</span>tcp<span class="pl-pds">"</span></span>, addr, timeout)
+  }
+  <span class="pl-smi">retryTimeout</span> <span class="pl-k">:=</span> <span class="pl-c1">10</span>*time.<span class="pl-smi">Second</span>
+  <span class="pl-smi">client</span> <span class="pl-k">:=</span> client.<span class="pl-c1">New</span>(<span class="pl-s"><span class="pl-pds">"</span>10.0.0.1:2380<span class="pl-pds">"</span></span>, retryTimeout, dailerFn)
+  <span class="pl-smi">kvPair</span>, <span class="pl-smi">err</span> <span class="pl-k">:=</span> client.<span class="pl-c1">Get</span>(<span class="pl-s"><span class="pl-pds">"</span>/foo<span class="pl-pds">"</span></span>)</pre></div>
+
+<p>Requests to the K/V store can be sent to any peer and it will be forwarded to the leader.
+This implements libkv's <code>Store</code> interface.</p>
+
+<p>You can also communicate with the k/v store directly from the cluster:</p>
+
+<div class="highlight highlight-source-go"><pre>  <span class="pl-smi">kvPair</span>, <span class="pl-smi">err</span> <span class="pl-k">:=</span> cluster.<span class="pl-c1">KVStore</span>().<span class="pl-c1">Get</span>(<span class="pl-s"><span class="pl-pds">"</span>/foo<span class="pl-pds">"</span></span>)</pre></div>
+
+<p>This also implements libkv's <code>Store</code> interface.</p>
+
+<h3>
+<a id="todo" class="anchor" href="#todo" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>TODO:</h3>
+
+<ul>
+<li>Add (more) tests</li>
+<li>Improve RPC semantics</li>
+<li>Look at using something other than JSON for encoding/decoding K/V messages, and RPC messages</li>
+<li>Implement cluster management, adding/removing nodes to the store cluster as needed</li>
+</ul>
+
+      <footer class="site-footer">
+        <span class="site-footer-owner"><a href="https://github.com/cpuguy83/drax">Drax</a> is maintained by <a href="https://github.com/cpuguy83">cpuguy83</a>.</span>
+
+        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the <a href="https://github.com/jasonlong/cayman-theme">Cayman theme</a> by <a href="https://twitter.com/jasonlong">Jason Long</a>.</span>
+      </footer>
+
+    </section>
+
+  
+  </body>
+</html>
