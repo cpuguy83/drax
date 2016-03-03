@@ -232,3 +232,5 @@ func (c *Client) AtomicDelete(key string, previous *store.KVPair) (bool, error) 
 	}
 	return res.Completed, nil
 }
+
+func (c *Client) Close() { c.streamLayer.Close() }
