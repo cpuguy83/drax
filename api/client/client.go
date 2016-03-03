@@ -233,4 +233,5 @@ func (c *Client) AtomicDelete(key string, previous *store.KVPair) (bool, error) 
 	return res.Completed, nil
 }
 
+// Close closes the underlying stream layer
 func (c *Client) Close() { c.streamLayer.Close() }
