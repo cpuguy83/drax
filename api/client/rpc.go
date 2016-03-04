@@ -6,8 +6,15 @@ import (
 	"net"
 
 	"github.com/cpuguy83/drax/api"
+	"github.com/cpuguy83/drax/api/errors"
+	"github.com/docker/distribution/registry/api/errcode"
 	"github.com/docker/libkv/store"
 )
+
+var errcodeToErr = map[errcode.ErrorCode]error{
+	errors.StoreKeyNotFound: store.ErrKeyNotFound,
+	errors.StoreKeyModified: store.ErrKeyModified,
+}
 
 func (c *Client) dial() (net.Conn, error) {
 	return c.streamLayer.DialWithRetry(c.addr, c.retryTimeout, true)
@@ -29,7 +36,7 @@ func (c *Client) do(req *api.Request) (*api.Response, error) {
 		return nil, fmt.Errorf("error decoding response: %v", err)
 	}
 	if res.Err != nil {
-		return nil, *res.Err
+		return nil, getErr(res.Err)
 	}
 	return &res, nil
 }
@@ -54,9 +61,20 @@ func kvToLibKV(kv *api.KVPair) *store.KVPair {
 }
 
 func libkvToKV(kv *store.KVPair) *api.KVPair {
+	if kv == nil {
+		return nil
+	}
 	return &api.KVPair{
 		Key:       kv.Key,
 		Value:     kv.Value,
 		LastIndex: kv.LastIndex,
 	}
+}
+
+func getErr(e *errcode.Error) error {
+	err, exists := errcodeToErr[e.Code]
+	if !exists {
+		return e
+	}
+	return err
 }
