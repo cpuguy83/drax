@@ -104,6 +104,7 @@ func waitClose(conn io.Reader, chStop chan struct{}) {
 		_, err := conn.Read(buf)
 		if err == io.EOF {
 			close(chStop)
+			return
 		}
 		continue
 	}
@@ -251,12 +252,20 @@ func (r *clientRPC) handleConn(conn net.Conn) {
 		h = r.AtomicPut
 	case api.AtomicDelete:
 		h = r.AtomicDelete
+	case api.Exists:
+		h = r.Exists
+	default:
+		logrus.Errorf("can't handle action: %s", req.Action)
+		return
 	}
 
 	h(conn, &clientRequest{&req, conn})
 }
 
 func libkvToKV(kv *libkvstore.KVPair) *api.KVPair {
+	if kv == nil {
+		return nil
+	}
 	return &api.KVPair{
 		Key:       kv.Key,
 		Value:     kv.Value,
@@ -265,6 +274,9 @@ func libkvToKV(kv *libkvstore.KVPair) *api.KVPair {
 }
 
 func kvToLibKV(kv *api.KVPair) *libkvstore.KVPair {
+	if kv == nil {
+		return nil
+	}
 	return &libkvstore.KVPair{
 		Key:       kv.Key,
 		Value:     kv.Value,

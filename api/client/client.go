@@ -74,7 +74,10 @@ func (c *Client) Exists(key string) (bool, error) {
 	}
 
 	res, err := c.do(req)
-	return res.Exists, err
+	if err != nil {
+		return false, err
+	}
+	return res.Exists, nil
 }
 
 // List lists the key/value pairs that have the provided key prefix
@@ -208,7 +211,9 @@ func (c *Client) AtomicPut(key string, value []byte, previous *store.KVPair, opt
 		Key:      key,
 		Value:    value,
 		Previous: libkvToKV(previous),
-		TTL:      options.TTL,
+	}
+	if options != nil {
+		req.TTL = options.TTL
 	}
 
 	res, err := c.do(&req)
