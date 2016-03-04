@@ -2,6 +2,7 @@ package drax
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -32,10 +33,11 @@ type Cluster struct {
 	mu                   sync.Mutex
 	rpcDialer            rpc.DialerFn
 	peers                raft.PeerStore
+	logger               io.Writer
 }
 
 // New creates a new Cluster and starts it
-func New(l net.Listener, rpcDialer rpc.DialerFn, home, addr, peer string) (*Cluster, error) {
+func New(l net.Listener, rpcDialer rpc.DialerFn, home, addr, peer string, logger io.Writer) (*Cluster, error) {
 	if err := os.MkdirAll(home, 0600); err != nil {
 		return nil, fmt.Errorf("error creating home dir: %v", err)
 	}
@@ -47,6 +49,7 @@ func New(l net.Listener, rpcDialer rpc.DialerFn, home, addr, peer string) (*Clus
 		chShutdown: make(chan struct{}),
 		chErrors:   make(chan error, 1),
 		l:          l,
+		logger:     logger,
 		rpcDialer:  rpcDialer,
 	}
 	return c, c.start()
@@ -57,6 +60,9 @@ func (c *Cluster) start() error {
 
 	cfg := raft.DefaultConfig()
 	cfg.ShutdownOnRemove = false
+	if c.logger != nil {
+		cfg.LogOutput = c.logger
+	}
 
 	raftStream := rpc.NewStreamLayer(c.l.Addr(), byte(raftMessage), c.rpcDialer)
 	raftTransport := raft.NewNetworkTransport(raftStream, 3, defaultTimeout, os.Stdout)
