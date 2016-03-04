@@ -48,7 +48,7 @@ func main() {
 		logrus.Fatalf("error setting up listener: %v", err)
 	}
 
-	cluster, err := drax.New(l, dialer, *flHome, l.Addr().String(), *flPeer)
+	cluster, err := drax.New(l, dialer, *flHome, l.Addr().String(), *flPeer, nil)
 	if err != nil {
 		logrus.Fatalf("Error setting up cluster: %v", err)
 	}
