@@ -23,6 +23,8 @@ var (
 	ErrKeyModified = libkvstore.ErrKeyModified
 	// ErrCallNotSupported - call is not supported
 	ErrCallNotSupported = libkvstore.ErrCallNotSupported
+
+	wgPool = sync.Pool{New: func() interface{} { return new(sync.WaitGroup) }}
 )
 
 type raftCluster interface {
@@ -35,7 +37,7 @@ type raftCluster interface {
 
 type store struct {
 	mu          sync.RWMutex
-	watchLock   sync.Mutex
+	watchLock   sync.RWMutex
 	ttlLock     sync.Mutex
 	data        *db
 	r           raftCluster
@@ -45,13 +47,17 @@ type store struct {
 }
 
 type watch struct {
-	stop    <-chan struct{}
-	watcher chan *libkvstore.KVPair
+	watchers map[chan *libkvstore.KVPair]struct{}
+	sync.RWMutex
+	closed  bool
+	timeout time.Duration
 }
 
 type treeWatch struct {
-	stop    <-chan struct{}
-	watcher chan []*libkvstore.KVPair
+	watchers map[chan []*libkvstore.KVPair]struct{}
+	sync.RWMutex
+	closed  bool
+	timeout time.Duration
 }
 
 type ttl struct {
@@ -176,11 +182,25 @@ func (s *store) Watch(key string, stopCh <-chan struct{}) (<-chan *libkvstore.KV
 	if !s.r.IsLeader() {
 		return s.newClient().Watch(key, stopCh)
 	}
+
 	s.watchLock.Lock()
-	chKV := make(chan *libkvstore.KVPair)
-	s.watches[key] = &watch{watcher: chKV, stop: stopCh}
-	s.watchLock.Unlock()
-	return chKV, nil
+	defer s.watchLock.Unlock()
+
+	waitStop := func(w *watch, stopCh <-chan struct{}, ch chan *libkvstore.KVPair) {
+		<-stopCh
+		w.Evict(ch)
+	}
+
+	if w, exists := s.watches[key]; exists {
+		ch := w.Subscribe()
+		go waitStop(w, stopCh, ch)
+		return ch, nil
+	}
+	w := &watch{watchers: make(map[chan *libkvstore.KVPair]struct{})}
+	ch := w.Subscribe()
+	s.watches[key] = w
+	go waitStop(w, stopCh, ch)
+	return ch, nil
 }
 
 func (s *store) WatchTree(dir string, stopCh <-chan struct{}) (<-chan []*libkvstore.KVPair, error) {
@@ -188,10 +208,24 @@ func (s *store) WatchTree(dir string, stopCh <-chan struct{}) (<-chan []*libkvst
 		return s.newClient().WatchTree(dir, stopCh)
 	}
 	s.watchLock.Lock()
-	chKV := make(chan []*libkvstore.KVPair)
-	s.treeWatches[dir] = &treeWatch{watcher: chKV, stop: stopCh}
-	s.watchLock.Unlock()
-	return chKV, nil
+	defer s.watchLock.Unlock()
+
+	waitStop := func(w *treeWatch, stopCh <-chan struct{}, ch chan []*libkvstore.KVPair) {
+		<-stopCh
+		w.Evict(ch)
+	}
+
+	if w, exists := s.treeWatches[dir]; exists {
+		ch := w.Subscribe()
+		go waitStop(w, stopCh, ch)
+		return ch, nil
+	}
+
+	w := &treeWatch{watchers: make(map[chan []*libkvstore.KVPair]struct{})}
+	s.treeWatches[dir] = w
+	ch := w.Subscribe()
+	go waitStop(w, stopCh, ch)
+	return ch, nil
 }
 
 func (s *store) NewLock(key string, options *libkvstore.LockOptions) (libkvstore.Locker, error) {
@@ -213,7 +247,6 @@ func (s *store) AtomicPut(key string, value []byte, previous *libkvstore.KVPair,
 		if previous != nil && err == ErrKeyNotFound {
 			return false, nil, ErrKeyModified
 		}
-		return false, nil, err
 	}
 
 	if previous != nil && kv.LastIndex != previous.LastIndex {
@@ -414,66 +447,29 @@ func (s *storeFSM) checkWatches(key string, kv *libkvstore.KVPair) {
 	if !exists {
 		return
 	}
-
-	// prevent races with sending and checking the closed channel
-	select {
-	case <-w.stop:
-		s.watchLock.Lock()
-		close(w.watcher)
-		delete(s.watches, key)
-		s.watchLock.Unlock()
+	if kv == nil {
+		w.Close()
 		return
-	default:
 	}
-
-	go func(w *watch) {
-		select {
-		case w.watcher <- kv:
-		case <-w.stop:
-			s.watchLock.Lock()
-			close(w.watcher)
-			delete(s.watches, key)
-			s.watchLock.Unlock()
-		}
-	}(w)
+	w.Publish(kv)
 }
 
 func (s *storeFSM) checkTreeWatches(key string, kv []*libkvstore.KVPair) {
 	s.watchLock.Lock()
-	var watches = make(map[string]*treeWatch)
-	for dir, w := range s.treeWatches {
-		if strings.HasPrefix(key, dir) {
-			watches[dir] = w
-			// prevent races with sending and checking the closed channel
-			select {
-			case <-w.stop:
-				close(w.watcher)
-				delete(s.treeWatches, dir)
-				continue
-			default:
-			}
-		}
-	}
-	s.watchLock.Unlock()
+	defer s.watchLock.Unlock()
 
-	for dir, w := range watches {
-		go func(w *treeWatch, dir string) {
-			select {
-			case w.watcher <- kv:
-			case <-w.stop:
-				s.watchLock.Lock()
-				close(w.watcher)
-				delete(s.treeWatches, dir)
-				s.watchLock.Unlock()
-			}
-		}(w, dir)
+	for dir, w := range s.treeWatches {
+		if !strings.HasPrefix(key, dir) {
+			continue
+		}
+		go w.Publish(kv)
 	}
 }
 
 func (s *storeFSM) closeWatches(key string) {
 	s.watchLock.Lock()
 	if w, exists := s.watches[key]; exists {
-		close(w.watcher)
+		w.Close()
 		delete(s.watches, key)
 	}
 
@@ -481,15 +477,113 @@ func (s *storeFSM) closeWatches(key string) {
 		// key is dir
 		if dir == key {
 			delete(s.treeWatches, key)
-			close(w.watcher)
+			w.Close()
 			continue
 		}
 
 		// dir is underneath key, recurrsive delete
 		if strings.HasPrefix(dir, key) {
 			delete(s.treeWatches, key)
-			close(w.watcher)
+			w.Close()
 		}
 	}
 	s.watchLock.Unlock()
+}
+
+func (w *treeWatch) Subscribe() chan []*libkvstore.KVPair {
+	ch := make(chan []*libkvstore.KVPair, 1000)
+	w.Lock()
+	w.watchers[ch] = struct{}{}
+	w.Unlock()
+	return ch
+}
+
+func (w *treeWatch) Publish(kv []*libkvstore.KVPair) {
+	w.RLock()
+	defer w.RUnlock()
+
+	if len(w.watchers) == 0 {
+		return
+	}
+
+	wg := wgPool.Get().(*sync.WaitGroup)
+	wg.Add(len(w.watchers))
+	for s := range w.watchers {
+		go func(s chan []*libkvstore.KVPair) {
+			defer wg.Done()
+			select {
+			case <-time.After(w.timeout):
+				return
+			case s <- kv:
+			}
+		}(s)
+	}
+
+	wg.Wait()
+}
+
+func (w *treeWatch) Evict(s chan []*libkvstore.KVPair) {
+	w.Lock()
+	delete(w.watchers, s)
+	close(s)
+	w.Unlock()
+}
+
+func (w *watch) Subscribe() chan *libkvstore.KVPair {
+	ch := make(chan *libkvstore.KVPair, 1000)
+	w.Lock()
+	w.watchers[ch] = struct{}{}
+	w.Unlock()
+	return ch
+}
+
+func (w *watch) Publish(kv *libkvstore.KVPair) {
+	w.RLock()
+	defer w.RUnlock()
+
+	if len(w.watchers) == 0 {
+		return
+	}
+
+	wg := wgPool.Get().(*sync.WaitGroup)
+	wg.Add(len(w.watchers))
+	for s := range w.watchers {
+		go func(s chan *libkvstore.KVPair) {
+			defer wg.Done()
+			select {
+			case <-time.After(w.timeout):
+				return
+			case s <- kv:
+			}
+		}(s)
+	}
+
+	wg.Wait()
+}
+
+func (w *watch) Evict(s chan *libkvstore.KVPair) {
+	w.Lock()
+	delete(w.watchers, s)
+	close(s)
+	w.Unlock()
+}
+
+func (w *watch) Close() {
+	w.Lock()
+	defer w.Unlock()
+
+	for s := range w.watchers {
+		close(s)
+		delete(w.watchers, s)
+	}
+}
+
+func (w *treeWatch) Close() {
+	w.Lock()
+	defer w.Unlock()
+
+	for s := range w.watchers {
+		close(s)
+		delete(w.watchers, s)
+	}
 }
