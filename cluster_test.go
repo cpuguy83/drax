@@ -111,7 +111,7 @@ func newTestCluster(size int, prefixAddr string) ([]*Cluster, error) {
 		if i > 0 {
 			peer = nodes[i-1].addr
 		}
-		c, err := New(l, dialer, home, addr, peer)
+		c, err := New(l, dialer, home, addr, peer, nil)
 		if err != nil {
 			return nil, err
 		}

@@ -35,7 +35,7 @@ func newTestCluster(size int, prefixAddr string) ([]*drax.Cluster, error) {
 		if i > 0 {
 			peer = nodes[i-1].Addr()
 		}
-		c, err := drax.New(l, dialer, home, addr, peer)
+		c, err := drax.New(l, dialer, home, addr, peer, nil)
 		if err != nil {
 			return nil, err
 		}
