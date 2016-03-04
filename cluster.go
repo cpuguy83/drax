@@ -181,7 +181,6 @@ func (c *Cluster) handleLeader(leaderCh <-chan interface{}) {
 		}
 
 		// Handle cluster-level leadership resonsibilities
-		logrus.Debug("cluster: handling leadership")
 		time.Sleep(5 * time.Second)
 	}
 }
